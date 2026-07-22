@@ -111,7 +111,6 @@ with first_row_col1:
         "🥞 Stack 체험하러 가기",
         key="go_to_stack",
         use_container_width=True,
-        type="primary",
     ):
         move_to_page(
             "pages/1_Stack.py"
