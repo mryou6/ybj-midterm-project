@@ -1,20 +1,19 @@
 import streamlit as st
 
-from modules.common import (
-    apply_common_style,
-    render_footer,
-    render_html,
-    render_page_header,
-    render_section_title,
-)
-
-
 # 반드시 다른 Streamlit 명령보다 먼저 실행
 st.set_page_config(
     page_title="자료구조 놀이터",
     page_icon="🧩",
     layout="wide",
     initial_sidebar_state="expanded",
+)
+
+from modules.common import (
+    apply_common_style,
+    render_footer,
+    render_html,
+    render_page_header,
+    render_section_title,
 )
 
 apply_common_style()
