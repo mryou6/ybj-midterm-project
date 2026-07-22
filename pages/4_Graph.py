@@ -5,7 +5,7 @@ Graph 자료구조 체험 페이지입니다.
 1. Graph 개념 알아보기
 2. 정점과 간선 구성하기
 3. DFS·BFS 체험하기
-4. 탐색 단계 확인하기
+4. 버튼으로 탐색 단계 확인하기
 5. 다음 방문 정점 예측하기
 6. 학습 확인하기
 """
@@ -57,6 +57,10 @@ apply_common_style()
 
 @st.cache_data
 def load_example_graphs() -> dict:
+    """
+    data/example_graphs.json 파일을 읽습니다.
+    """
+
     graph_file = (
         DATA_DIR
         / "example_graphs.json"
@@ -163,12 +167,20 @@ graph.load_dict(
 
 
 def save_graph_state() -> None:
+    """
+    Graph 객체를 Session State에 저장합니다.
+    """
+
     st.session_state.graph_data = (
         graph.to_dict()
     )
 
 
 def reset_traversal() -> None:
+    """
+    그래프 구조가 변경되면 기존 탐색 결과를 초기화합니다.
+    """
+
     st.session_state.graph_algorithm = None
     st.session_state.graph_traversal_order = []
     st.session_state.graph_traversal_steps = []
@@ -177,11 +189,30 @@ def reset_traversal() -> None:
     st.session_state.graph_prediction_submitted = False
     st.session_state.graph_prediction_answer = None
 
+    if "graph_prediction_radio" in st.session_state:
+        del st.session_state["graph_prediction_radio"]
+
+
+def reset_prediction() -> None:
+    """
+    탐색 단계가 변경되면 이전 예측 결과를 초기화합니다.
+    """
+
+    st.session_state.graph_prediction_submitted = False
+    st.session_state.graph_prediction_answer = None
+
+    if "graph_prediction_radio" in st.session_state:
+        del st.session_state["graph_prediction_radio"]
+
 
 def record_operation(
     result: dict,
     changes_graph: bool = False,
 ) -> None:
+    """
+    그래프 연산 결과를 기록합니다.
+    """
+
     st.session_state.graph_last_result = result
     st.session_state.graph_history.append(result)
 
@@ -189,6 +220,31 @@ def record_operation(
 
     if changes_graph:
         reset_traversal()
+
+
+def move_to_step(
+    target_step: int,
+) -> None:
+    """
+    탐색 단계를 지정한 번호로 이동합니다.
+    """
+
+    steps = st.session_state.graph_traversal_steps
+
+    if not steps:
+        return
+
+    last_index = len(steps) - 1
+
+    st.session_state.graph_step_index = max(
+        0,
+        min(
+            target_step,
+            last_index,
+        ),
+    )
+
+    reset_prediction()
 
 
 # ============================================================
@@ -206,7 +262,7 @@ render_page_header(
 
 
 # ============================================================
-# 6. 개념 설명
+# 6. Graph 개념 설명
 # ============================================================
 
 render_section_title(
@@ -228,7 +284,9 @@ with concept_col1:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">🔵</div>
+            <div class="structure-card-icon">
+                🔵
+            </div>
 
             <div class="structure-card-title">
                 정점 Vertex
@@ -249,7 +307,9 @@ with concept_col2:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">➖</div>
+            <div class="structure-card-icon">
+                ➖
+            </div>
 
             <div class="structure-card-title">
                 간선 Edge
@@ -270,7 +330,9 @@ with concept_col3:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">🧭</div>
+            <div class="structure-card-icon">
+                🧭
+            </div>
 
             <div class="structure-card-title">
                 그래프 탐색
@@ -290,7 +352,8 @@ with concept_col3:
 render_message(
     (
         "<strong>DFS</strong>는 Stack을 활용해 깊이 탐색하고, "
-        "<strong>BFS</strong>는 Queue를 활용해 가까운 정점부터 탐색합니다."
+        "<strong>BFS</strong>는 Queue를 활용해 "
+        "가까운 정점부터 탐색합니다."
     ),
     message_type="info",
     allow_html=True,
@@ -326,6 +389,7 @@ with control_col:
             else 0
         ),
         horizontal=True,
+        key="graph_type_radio",
     )
 
     selected_directed = (
@@ -345,7 +409,8 @@ with control_col:
                 f"{directed_option}로 변경했습니다."
             ),
             "concept": (
-                "그래프 유형을 변경하면 기존 연결 관계를 초기화합니다."
+                "그래프 유형을 변경하면 "
+                "기존 연결 관계를 초기화합니다."
             ),
         }
 
@@ -356,11 +421,15 @@ with control_col:
 
         st.rerun()
 
-    vertex_name = st.text_input(
+    vertex_names = st.text_input(
         "추가할 정점 이름",
-        placeholder="예: A",
-        max_chars=8,
-        key="graph_vertex_name",
+        placeholder="예: A, B, C, D",
+        help=(
+            "여러 정점은 쉼표로 구분하세요. "
+            "입력값의 앞뒤 공백은 자동으로 제거됩니다."
+        ),
+        max_chars=100,
+        key="graph_vertex_names",
     )
 
     if st.button(
@@ -368,8 +437,8 @@ with control_col:
         use_container_width=True,
         type="primary",
     ):
-        result = graph.add_vertex(
-            vertex_name
+        result = graph.add_vertices(
+            vertex_names
         )
 
         record_operation(
@@ -392,14 +461,20 @@ with control_col:
             )
 
         with edge_col2:
+            available_end_indices = list(
+                range(len(vertices))
+            )
+
+            default_end_index = (
+                1
+                if len(vertices) > 1
+                else 0
+            )
+
             edge_end = st.selectbox(
                 "도착 정점",
                 vertices,
-                index=(
-                    1
-                    if len(vertices) > 1
-                    else 0
-                ),
+                index=default_end_index,
                 key="graph_edge_end",
             )
 
@@ -425,11 +500,14 @@ with control_col:
         )
 
     if example_graphs:
-        st.markdown("#### 예제 그래프")
+        st.markdown(
+            "#### 예제 그래프"
+        )
 
         example_name = st.selectbox(
             "불러올 예제",
             list(example_graphs.keys()),
+            key="graph_example_name",
         )
 
         selected_example = (
@@ -470,8 +548,8 @@ with control_col:
                     f"'{example_name}'을(를) 불러왔습니다."
                 ),
                 "concept": (
-                    "예제 그래프에서 시작 정점을 선택하고 "
-                    "DFS와 BFS를 비교해 보세요."
+                    "시작 정점을 선택하고 "
+                    "DFS와 BFS의 방문 순서를 비교해 보세요."
                 ),
             }
 
@@ -510,7 +588,7 @@ with visual_col:
     current_step = None
 
     if st.session_state.graph_traversal_steps:
-        step_index = min(
+        current_index = min(
             st.session_state.graph_step_index,
             len(
                 st.session_state.graph_traversal_steps
@@ -519,19 +597,24 @@ with visual_col:
 
         current_step = (
             st.session_state.graph_traversal_steps[
-                step_index
+                current_index
             ]
         )
 
     render_graph(
         graph,
         visited=(
-            current_step.get("visited", [])
+            current_step.get(
+                "visited",
+                [],
+            )
             if current_step
             else []
         ),
         current=(
-            current_step.get("current")
+            current_step.get(
+                "current"
+            )
             if current_step
             else None
         ),
@@ -559,7 +642,7 @@ with status_col2:
 
 
 # ============================================================
-# 9. DFS·BFS 탐색
+# 9. DFS·BFS 실행
 # ============================================================
 
 render_section_title(
@@ -600,18 +683,27 @@ else:
 
         st.session_state.graph_algorithm = "DFS"
         st.session_state.graph_traversal_order = (
-            result.get("order", [])
+            result.get(
+                "order",
+                [],
+            )
         )
         st.session_state.graph_traversal_steps = (
-            result.get("steps", [])
+            result.get(
+                "steps",
+                [],
+            )
         )
         st.session_state.graph_step_index = 0
         st.session_state.graph_start_vertex = (
             start_vertex
         )
         st.session_state.graph_last_result = result
-        st.session_state.graph_history.append(result)
-        st.session_state.graph_prediction_submitted = False
+        st.session_state.graph_history.append(
+            result
+        )
+
+        reset_prediction()
 
         st.rerun()
 
@@ -622,55 +714,143 @@ else:
 
         st.session_state.graph_algorithm = "BFS"
         st.session_state.graph_traversal_order = (
-            result.get("order", [])
+            result.get(
+                "order",
+                [],
+            )
         )
         st.session_state.graph_traversal_steps = (
-            result.get("steps", [])
+            result.get(
+                "steps",
+                [],
+            )
         )
         st.session_state.graph_step_index = 0
         st.session_state.graph_start_vertex = (
             start_vertex
         )
         st.session_state.graph_last_result = result
-        st.session_state.graph_history.append(result)
-        st.session_state.graph_prediction_submitted = False
+        st.session_state.graph_history.append(
+            result
+        )
+
+        reset_prediction()
 
         st.rerun()
 
-    if st.session_state.graph_traversal_steps:
-        steps = (
-            st.session_state.graph_traversal_steps
+
+# ============================================================
+# 10. 버튼으로 탐색 단계 이동
+# ============================================================
+
+steps = st.session_state.graph_traversal_steps
+
+if steps:
+    current_index = min(
+        st.session_state.graph_step_index,
+        len(steps) - 1,
+    )
+
+    last_index = len(steps) - 1
+
+    render_html(
+        f"""
+        <section class="status-panel">
+            <div class="status-title">
+                {escape(str(st.session_state.graph_algorithm))}
+                탐색 단계 조작
+            </div>
+
+            <div class="status-item">
+                <span class="status-label">
+                    현재 단계
+                </span>
+
+                <span class="status-value">
+                    {current_index} / {last_index}
+                </span>
+            </div>
+        </section>
+        """
+    )
+
+    step_col1, step_col2, step_col3, step_col4 = (
+        st.columns(4)
+    )
+
+    with step_col1:
+        first_clicked = st.button(
+            "⏮ 처음",
+            use_container_width=True,
+            disabled=current_index == 0,
         )
 
-        selected_step = st.slider(
-            "탐색 단계",
-            min_value=0,
-            max_value=len(steps) - 1,
-            value=min(
-                st.session_state.graph_step_index,
-                len(steps) - 1,
+    with step_col2:
+        previous_clicked = st.button(
+            "◀ 이전",
+            use_container_width=True,
+            disabled=current_index == 0,
+        )
+
+    with step_col3:
+        next_clicked = st.button(
+            "다음 ▶",
+            use_container_width=True,
+            type=(
+                "primary"
+                if current_index < last_index
+                else "secondary"
             ),
-            step=1,
+            disabled=current_index >= last_index,
         )
 
-        st.session_state.graph_step_index = (
-            selected_step
+    with step_col4:
+        last_clicked = st.button(
+            "마지막 ⏭",
+            use_container_width=True,
+            disabled=current_index >= last_index,
         )
 
-        render_traversal_step(
-            st.session_state.graph_algorithm,
-            steps[selected_step],
-            len(steps),
-        )
+    if first_clicked:
+        move_to_step(0)
+        st.rerun()
 
-        render_visit_order(
-            st.session_state.graph_algorithm,
-            st.session_state.graph_traversal_order,
+    if previous_clicked:
+        move_to_step(
+            current_index - 1
         )
+        st.rerun()
+
+    if next_clicked:
+        move_to_step(
+            current_index + 1
+        )
+        st.rerun()
+
+    if last_clicked:
+        move_to_step(
+            last_index
+        )
+        st.rerun()
+
+    current_step = steps[
+        st.session_state.graph_step_index
+    ]
+
+    render_traversal_step(
+        st.session_state.graph_algorithm,
+        current_step,
+        len(steps),
+    )
+
+    render_visit_order(
+        st.session_state.graph_algorithm,
+        st.session_state.graph_traversal_order,
+    )
 
 
 # ============================================================
-# 10. 다음 방문 정점 예측
+# 11. 다음 방문 정점 예측
 # ============================================================
 
 render_section_title(
@@ -679,98 +859,108 @@ render_section_title(
 
 steps = st.session_state.graph_traversal_steps
 
-if len(steps) < 3:
+if len(steps) < 2:
     st.info(
         "DFS 또는 BFS를 실행한 뒤 탐색 과정을 예측해 보세요."
     )
 
 else:
-    current_prediction_step = min(
+    current_index = min(
         st.session_state.graph_step_index,
-        len(steps) - 2,
+        len(steps) - 1,
     )
 
-    current_data = steps[
-        current_prediction_step
-    ]
-
-    next_data = steps[
-        current_prediction_step + 1
-    ]
-
-    render_html(
-        f"""
-        <section class="quiz-box">
-            <div class="quiz-title">
-                현재 단계 다음에는 어떤 정점을 방문할까요?
-            </div>
-
-            <div class="quiz-question">
-                현재 {st.session_state.graph_algorithm}의
-                Stack 또는 Queue 상태를 살펴보고
-                다음 방문 정점을 예측해 보세요.
-            </div>
-        </section>
-        """
-    )
-
-    prediction_options = (
-        graph.vertices()
-    )
-
-    prediction = st.radio(
-        "다음 방문 정점",
-        prediction_options,
-        index=None,
-        key="graph_prediction_radio",
-    )
-
-    if st.button(
-        "예측 결과 확인",
-        key="check_graph_prediction",
-    ):
-        st.session_state.graph_prediction_submitted = True
-        st.session_state.graph_prediction_answer = prediction
-
-    if st.session_state.graph_prediction_submitted:
-        correct_answer = next_data.get(
-            "current"
+    if current_index >= len(steps) - 1:
+        render_message(
+            (
+                "현재 마지막 단계입니다. "
+                "이전 버튼을 눌러 중간 단계로 이동한 뒤 "
+                "다음 정점을 예측해 보세요."
+            ),
+            message_type="info",
         )
 
-        selected_answer = (
-            st.session_state.graph_prediction_answer
+    else:
+        next_step = steps[
+            current_index + 1
+        ]
+
+        render_html(
+            f"""
+            <section class="quiz-box">
+                <div class="quiz-title">
+                    현재 단계 다음에는 어떤 정점을 방문할까요?
+                </div>
+
+                <div class="quiz-question">
+                    현재
+                    {escape(str(st.session_state.graph_algorithm))}의
+                    Stack 또는 Queue 상태를 살펴보고
+                    다음 방문 정점을 예측해 보세요.
+                </div>
+            </section>
+            """
         )
 
-        if selected_answer is None:
-            st.warning(
-                "답을 선택한 뒤 결과를 확인해 주세요."
+        prediction = st.radio(
+            "다음 방문 정점",
+            graph.vertices(),
+            index=None,
+            key="graph_prediction_radio",
+        )
+
+        if st.button(
+            "예측 결과 확인",
+            key="check_graph_prediction",
+        ):
+            st.session_state.graph_prediction_submitted = True
+            st.session_state.graph_prediction_answer = (
+                prediction
             )
 
-        elif selected_answer == correct_answer:
-            render_html(
-                f"""
-                <div class="quiz-result-correct">
-                    정답입니다!<br>
-                    다음에 방문할 정점은
-                    <strong>{escape(str(correct_answer))}</strong>입니다.
-                </div>
-                """
+        if st.session_state.graph_prediction_submitted:
+            correct_answer = next_step.get(
+                "current"
             )
 
-        else:
-            render_html(
-                f"""
-                <div class="quiz-result-wrong">
-                    다시 생각해 보세요.<br>
-                    다음에 방문할 정점은
-                    <strong>{escape(str(correct_answer))}</strong>입니다.
-                </div>
-                """
+            selected_answer = (
+                st.session_state.graph_prediction_answer
             )
+
+            if selected_answer is None:
+                st.warning(
+                    "답을 선택한 뒤 결과를 확인해 주세요."
+                )
+
+            elif selected_answer == correct_answer:
+                render_html(
+                    f"""
+                    <div class="quiz-result-correct">
+                        정답입니다!<br>
+                        다음에 방문할 정점은
+                        <strong>
+                            {escape(str(correct_answer))}
+                        </strong>입니다.
+                    </div>
+                    """
+                )
+
+            else:
+                render_html(
+                    f"""
+                    <div class="quiz-result-wrong">
+                        다시 생각해 보세요.<br>
+                        다음에 방문할 정점은
+                        <strong>
+                            {escape(str(correct_answer))}
+                        </strong>입니다.
+                    </div>
+                    """
+                )
 
 
 # ============================================================
-# 11. 학습 확인
+# 12. 학습 확인
 # ============================================================
 
 render_section_title(
@@ -879,7 +1069,7 @@ if st.session_state.graph_quiz_submitted:
 
 
 # ============================================================
-# 12. 연산 기록
+# 13. 연산 기록
 # ============================================================
 
 with st.expander(
@@ -900,7 +1090,7 @@ with st.expander(
 
 
 # ============================================================
-# 13. 페이지 하단
+# 14. 페이지 하단
 # ============================================================
 
 render_footer()

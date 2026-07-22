@@ -2,7 +2,7 @@
 Graph 자료구조의 핵심 로직을 구현하는 모듈입니다.
 
 주요 기능
-- 정점 추가
+- 정점 한 개 또는 여러 개 추가
 - 간선 추가
 - 방향·무방향 그래프 지원
 - DFS
@@ -30,12 +30,12 @@ class Graph:
         self.adjacency: dict[str, list[str]] = {}
 
     # ========================================================
-    # 정점 및 간선
+    # 정점 추가
     # ========================================================
 
     def add_vertex(self, vertex: str) -> dict[str, Any]:
         """
-        그래프에 정점을 추가합니다.
+        그래프에 정점 하나를 추가합니다.
         """
 
         vertex = self.normalize_vertex(vertex)
@@ -79,6 +79,126 @@ class Graph:
             ),
         }
 
+    def add_vertices(
+        self,
+        vertex_text: str,
+    ) -> dict[str, Any]:
+        """
+        쉼표로 구분된 여러 정점을 한 번에 추가합니다.
+
+        예:
+            A, B, C
+            A,B,C
+            A, B, C, D
+
+        Args:
+            vertex_text: 쉼표로 구분된 정점 문자열
+
+        Returns:
+            추가된 정점과 중복 정점 정보를 담은 딕셔너리
+        """
+
+        raw_vertices = str(vertex_text).split(",")
+
+        normalized_vertices = [
+            self.normalize_vertex(vertex)
+            for vertex in raw_vertices
+        ]
+
+        # 공백 입력 제거
+        normalized_vertices = [
+            vertex
+            for vertex in normalized_vertices
+            if vertex
+        ]
+
+        # 입력 문자열 내부의 중복 제거
+        unique_vertices = list(
+            dict.fromkeys(normalized_vertices)
+        )
+
+        if not unique_vertices:
+            return {
+                "success": False,
+                "action": "add_vertices",
+                "value": [],
+                "added": [],
+                "duplicates": [],
+                "message": (
+                    "추가할 정점 이름을 입력해 주세요."
+                ),
+                "concept": (
+                    "여러 정점은 쉼표로 구분하여 입력할 수 있습니다."
+                ),
+            }
+
+        added_vertices: list[str] = []
+        duplicate_vertices: list[str] = []
+
+        for vertex in unique_vertices:
+            if vertex in self.adjacency:
+                duplicate_vertices.append(vertex)
+                continue
+
+            self.adjacency[vertex] = []
+            added_vertices.append(vertex)
+
+        if added_vertices:
+            added_text = ", ".join(added_vertices)
+
+            if duplicate_vertices:
+                duplicate_text = ", ".join(
+                    duplicate_vertices
+                )
+
+                message = (
+                    f"정점 {added_text}을(를) 추가했습니다. "
+                    f"이미 존재하는 {duplicate_text}은(는) "
+                    "추가하지 않았습니다."
+                )
+
+            else:
+                message = (
+                    f"정점 {added_text}을(를) "
+                    "그래프에 추가했습니다."
+                )
+
+            return {
+                "success": True,
+                "action": "add_vertices",
+                "value": added_vertices,
+                "added": added_vertices,
+                "duplicates": duplicate_vertices,
+                "message": message,
+                "concept": (
+                    "입력한 정점의 공백을 제거하고 "
+                    "쉼표를 기준으로 각각 추가했습니다."
+                ),
+            }
+
+        duplicate_text = ", ".join(
+            duplicate_vertices
+        )
+
+        return {
+            "success": False,
+            "action": "add_vertices",
+            "value": [],
+            "added": [],
+            "duplicates": duplicate_vertices,
+            "message": (
+                f"입력한 정점 {duplicate_text}은(는) "
+                "모두 이미 그래프에 존재합니다."
+            ),
+            "concept": (
+                "같은 이름의 정점은 중복하여 추가하지 않습니다."
+            ),
+        }
+
+    # ========================================================
+    # 간선 추가
+    # ========================================================
+
     def add_edge(
         self,
         start: str,
@@ -96,7 +216,9 @@ class Graph:
                 "success": False,
                 "action": "add_edge",
                 "value": None,
-                "message": "연결할 두 정점을 모두 입력해 주세요.",
+                "message": (
+                    "연결할 두 정점을 모두 입력해 주세요."
+                ),
                 "concept": (
                     "간선은 두 정점 사이의 연결 관계를 나타냅니다."
                 ),
@@ -108,8 +230,8 @@ class Graph:
                 "action": "add_edge",
                 "value": (start, end),
                 "message": (
-                    "이번 학습용 그래프에서는 자기 자신을 연결하는 "
-                    "간선을 추가하지 않습니다."
+                    "이번 학습용 그래프에서는 자기 자신을 "
+                    "연결하는 간선을 추가하지 않습니다."
                 ),
                 "concept": (
                     "정점이 자기 자신과 연결된 간선을 "
@@ -117,7 +239,7 @@ class Graph:
                 ),
             }
 
-        # 정점이 없으면 자동으로 추가
+        # 없는 정점은 자동으로 추가
         if start not in self.adjacency:
             self.adjacency[start] = []
 
@@ -130,10 +252,12 @@ class Graph:
                 "action": "add_edge",
                 "value": (start, end),
                 "message": (
-                    f"{start}와(과) {end}은(는) 이미 연결되어 있습니다."
+                    f"{start}와(과) {end}은(는) "
+                    "이미 연결되어 있습니다."
                 ),
                 "concept": (
-                    "같은 두 정점 사이의 간선은 한 번만 추가합니다."
+                    "같은 두 정점 사이의 간선은 "
+                    "한 번만 추가합니다."
                 ),
             }
 
@@ -204,7 +328,8 @@ class Graph:
                 "container": stack.copy(),
                 "added": [start],
                 "description": (
-                    f"시작 정점 {start}을(를) Stack에 넣습니다."
+                    f"시작 정점 {start}을(를) "
+                    "Stack에 넣습니다."
                 ),
             }
         )
@@ -218,8 +343,6 @@ class Graph:
             visited_set.add(current)
             visited.append(current)
 
-            # 인접 리스트의 앞쪽 정점을 먼저 방문하기 위해
-            # Stack에는 역순으로 삽입
             unvisited_neighbors = [
                 neighbor
                 for neighbor in self.adjacency[current]
@@ -228,7 +351,10 @@ class Graph:
 
             added_vertices = []
 
-            for neighbor in reversed(unvisited_neighbors):
+            # 첫 번째 인접 정점을 먼저 꺼내기 위해 역순 삽입
+            for neighbor in reversed(
+                unvisited_neighbors
+            ):
                 if neighbor not in stack:
                     stack.append(neighbor)
                     added_vertices.append(neighbor)
@@ -242,7 +368,8 @@ class Graph:
                     "added": added_vertices.copy(),
                     "description": (
                         f"정점 {current}을(를) 방문하고, "
-                        "아직 방문하지 않은 인접 정점을 Stack에 넣습니다."
+                        "아직 방문하지 않은 인접 정점을 "
+                        "Stack에 넣습니다."
                     ),
                 }
             )
@@ -304,7 +431,8 @@ class Graph:
                 "container": list(queue),
                 "added": [start],
                 "description": (
-                    f"시작 정점 {start}을(를) Queue에 넣습니다."
+                    f"시작 정점 {start}을(를) "
+                    "Queue에 넣습니다."
                 ),
             }
         )
@@ -330,7 +458,8 @@ class Graph:
                     "added": added_vertices.copy(),
                     "description": (
                         f"정점 {current}을(를) 방문하고, "
-                        "새롭게 발견한 인접 정점을 Queue 뒤에 넣습니다."
+                        "새롭게 발견한 인접 정점을 "
+                        "Queue 뒤에 넣습니다."
                     ),
                 }
             )
@@ -373,6 +502,7 @@ class Graph:
             for end in neighbors:
                 if self.directed:
                     result.append((start, end))
+
                 else:
                     edge_key = tuple(
                         sorted((start, end))
@@ -392,7 +522,7 @@ class Graph:
 
     def degree(self, vertex: str) -> int:
         """
-        무방향 그래프에서 정점의 차수를 반환합니다.
+        무방향 그래프에서는 정점의 차수를 반환하고,
         방향 그래프에서는 나가는 간선 수를 반환합니다.
         """
 
@@ -407,7 +537,7 @@ class Graph:
         return not self.adjacency
 
     # ========================================================
-    # 저장·복원
+    # 초기화 및 저장
     # ========================================================
 
     def clear(self) -> dict[str, Any]:
@@ -426,8 +556,8 @@ class Graph:
             "value": None,
             "message": (
                 "그래프를 초기화했습니다. "
-                f"정점 {vertex_count}개와 간선 {edge_count}개가 "
-                "제거되었습니다."
+                f"정점 {vertex_count}개와 "
+                f"간선 {edge_count}개가 제거되었습니다."
             ),
             "concept": (
                 "초기화하면 그래프는 정점과 간선이 없는 "
@@ -444,7 +574,8 @@ class Graph:
             "directed": self.directed,
             "adjacency": {
                 vertex: neighbors.copy()
-                for vertex, neighbors in self.adjacency.items()
+                for vertex, neighbors
+                in self.adjacency.items()
             },
         }
 
@@ -473,7 +604,8 @@ class Graph:
                 str(neighbor)
                 for neighbor in neighbors
             ]
-            for vertex, neighbors in adjacency_data.items()
+            for vertex, neighbors
+            in adjacency_data.items()
         }
 
     def load_example(
@@ -511,7 +643,7 @@ class Graph:
     @staticmethod
     def normalize_vertex(vertex: str) -> str:
         """
-        정점 이름을 공백 제거 및 대문자 형태로 정리합니다.
+        정점 이름의 앞뒤 공백을 제거하고 대문자로 변환합니다.
         """
 
         return str(vertex).strip().upper()
