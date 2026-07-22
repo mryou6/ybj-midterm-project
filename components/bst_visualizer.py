@@ -2,10 +2,10 @@
 Binary Search Tree 시각화 모듈입니다.
 
 주요 기능
-- SVG 기반 트리 시각화
+- SVG 기반 이진 탐색 트리 시각화
 - 노드와 간선 표시
-- 탐색 및 삽입 경로 강조
-- 현재 상태 표시
+- 삽입 및 탐색 경로 강조
+- 트리 상태 표시
 - 순회 결과 표시
 - Python 코드 표시
 - 연산 기록 표시
@@ -13,6 +13,7 @@ Binary Search Tree 시각화 모듈입니다.
 
 from __future__ import annotations
 
+import base64
 from html import escape
 from typing import Any
 
@@ -29,14 +30,23 @@ from modules.common import render_html
 def calculate_tree_positions(
     root: Node | None,
     width: int = 900,
-    level_height: int = 110,
-    top_margin: int = 55,
+    level_height: int = 120,
+    top_margin: int = 65,
 ) -> dict[int, tuple[float, float]]:
     """
-    각 노드의 SVG 좌표를 계산합니다.
+    각 노드가 화면에 표시될 좌표를 계산합니다.
 
-    중위 순회 순서대로 X좌표를 배치하여
-    부모·자식 노드가 겹치지 않도록 합니다.
+    중위 순회 순서에 따라 X좌표를 배치하고,
+    노드의 깊이에 따라 Y좌표를 배치합니다.
+
+    Args:
+        root: 트리의 ROOT 노드
+        width: SVG 전체 너비
+        level_height: 트리 단계별 세로 간격
+        top_margin: SVG 위쪽 여백
+
+    Returns:
+        {노드값: (x좌표, y좌표)} 형태의 딕셔너리
     """
 
     if root is None:
@@ -44,29 +54,44 @@ def calculate_tree_positions(
 
     ordered_nodes: list[tuple[Node, int]] = []
 
-    def inorder_collect(
+    def collect_inorder(
         node: Node | None,
         depth: int,
     ) -> None:
         if node is None:
             return
 
-        inorder_collect(node.left, depth + 1)
-        ordered_nodes.append((node, depth))
-        inorder_collect(node.right, depth + 1)
+        collect_inorder(
+            node.left,
+            depth + 1,
+        )
 
-    inorder_collect(root, 0)
+        ordered_nodes.append(
+            (node, depth)
+        )
+
+        collect_inorder(
+            node.right,
+            depth + 1,
+        )
+
+    collect_inorder(
+        root,
+        0,
+    )
 
     node_count = len(ordered_nodes)
-    horizontal_margin = 65
 
-    usable_width = width - (horizontal_margin * 2)
+    horizontal_margin = 80
+    usable_width = width - horizontal_margin * 2
 
     positions: dict[int, tuple[float, float]] = {}
 
     for index, (node, depth) in enumerate(ordered_nodes):
+
         if node_count == 1:
             x = width / 2
+
         else:
             x = (
                 horizontal_margin
@@ -77,13 +102,44 @@ def calculate_tree_positions(
 
         y = top_margin + depth * level_height
 
-        positions[node.value] = (x, y)
+        positions[node.value] = (
+            x,
+            y,
+        )
 
     return positions
 
 
 # ============================================================
-# 2. SVG 요소 생성
+# 2. 탐색 경로 간선 판단
+# ============================================================
+
+def is_path_edge(
+    parent_value: int,
+    child_value: int,
+    highlighted_path: list[int],
+) -> bool:
+    """
+    부모와 자식 사이의 간선이 현재 탐색 경로에 포함되는지 확인합니다.
+    """
+
+    if len(highlighted_path) < 2:
+        return False
+
+    for index in range(
+        len(highlighted_path) - 1
+    ):
+        if (
+            highlighted_path[index] == parent_value
+            and highlighted_path[index + 1] == child_value
+        ):
+            return True
+
+    return False
+
+
+# ============================================================
+# 3. 간선 SVG 생성
 # ============================================================
 
 def build_edge_svg(
@@ -93,86 +149,89 @@ def build_edge_svg(
     highlighted_path: list[int],
 ) -> str:
     """
-    부모와 자식 노드를 연결하는 선을 생성합니다.
+    부모 노드와 자식 노드를 연결하는 간선을 생성합니다.
     """
 
     parent_x, parent_y = positions[parent.value]
     child_x, child_y = positions[child.value]
 
-    is_highlighted = False
-
-    if parent.value in highlighted_path:
-        parent_index = highlighted_path.index(parent.value)
-
-        if parent_index + 1 < len(highlighted_path):
-            is_highlighted = (
-                highlighted_path[parent_index + 1]
-                == child.value
-            )
-
-    stroke = "#e38a2d" if is_highlighted else "#9aa8b6"
-    stroke_width = 5 if is_highlighted else 3
-
-    return (
-        f'<line x1="{parent_x}" y1="{parent_y + 28}" '
-        f'x2="{child_x}" y2="{child_y - 28}" '
-        f'stroke="{stroke}" '
-        f'stroke-width="{stroke_width}" '
-        f'stroke-linecap="round" />'
+    highlighted = is_path_edge(
+        parent.value,
+        child.value,
+        highlighted_path,
     )
 
+    stroke_color = (
+        "#e58a27"
+        if highlighted
+        else "#9aa8b6"
+    )
+
+    stroke_width = (
+        5
+        if highlighted
+        else 3
+    )
+
+    return f"""
+    <line
+        x1="{parent_x}"
+        y1="{parent_y + 31}"
+        x2="{child_x}"
+        y2="{child_y - 31}"
+        stroke="{stroke_color}"
+        stroke-width="{stroke_width}"
+        stroke-linecap="round"
+    />
+    """
+
+
+# ============================================================
+# 4. 노드 SVG 생성
+# ============================================================
 
 def build_node_svg(
     node: Node,
     positions: dict[int, tuple[float, float]],
     highlighted_path: list[int],
     found_value: int | None,
-    target_value: int | None,
 ) -> str:
     """
-    하나의 트리 노드를 SVG로 생성합니다.
+    하나의 트리 노드를 원 모양의 SVG 요소로 생성합니다.
     """
 
     x, y = positions[node.value]
 
-    fill = "#eef0ff"
-    stroke = "#6a75c9"
+    fill_color = "#eef0ff"
+    stroke_color = "#6874c7"
     text_color = "#353d83"
     stroke_width = 3
 
+    # 탐색 또는 삽입 경로에 포함된 노드
     if node.value in highlighted_path:
-        fill = "#fff1df"
-        stroke = "#e58a27"
+        fill_color = "#fff1df"
+        stroke_color = "#e58a27"
         text_color = "#8c4a0b"
         stroke_width = 5
 
+    # 탐색에 성공한 노드
     if (
         found_value is not None
         and node.value == found_value
     ):
-        fill = "#e8f8ef"
-        stroke = "#2c9b63"
+        fill_color = "#e8f8ef"
+        stroke_color = "#2c9b63"
         text_color = "#216341"
         stroke_width = 5
-
-    elif (
-        target_value is not None
-        and node.value == target_value
-        and node.value == highlighted_path[-1]
-        if highlighted_path
-        else False
-    ):
-        fill = "#fff1df"
-        stroke = "#e58a27"
 
     return f"""
     <g>
         <circle
             cx="{x}"
             cy="{y}"
-            r="31"
-            fill="{fill}"
-            stroke="{stroke}"
+            r="32"
+            fill="{fill_color}"
+            stroke="{stroke_color}"
             stroke-width="{stroke_width}"
         />
 
@@ -180,10 +239,10 @@ def build_node_svg(
             x="{x}"
             y="{y + 7}"
             text-anchor="middle"
+            font-family="Noto Sans KR, sans-serif"
             font-size="19"
             font-weight="800"
             fill="{text_color}"
-            font-family="Noto Sans KR, sans-serif"
         >
             {escape(str(node.value))}
         </text>
@@ -192,7 +251,29 @@ def build_node_svg(
 
 
 # ============================================================
-# 3. 트리 시각화
+# 5. SVG를 Base64 이미지로 변환
+# ============================================================
+
+def svg_to_data_uri(
+    svg_text: str,
+) -> str:
+    """
+    SVG 문자열을 브라우저에서 표시할 수 있는
+    Base64 데이터 주소로 변환합니다.
+    """
+
+    encoded_svg = base64.b64encode(
+        svg_text.encode("utf-8")
+    ).decode("utf-8")
+
+    return (
+        "data:image/svg+xml;base64,"
+        + encoded_svg
+    )
+
+
+# ============================================================
+# 6. 트리 시각화
 # ============================================================
 
 def render_bst(
@@ -202,23 +283,30 @@ def render_bst(
     target_value: int | None = None,
 ) -> None:
     """
-    이진 탐색 트리를 SVG로 표시합니다.
+    이진 탐색 트리를 SVG 이미지로 시각화합니다.
 
     Args:
-        tree: 표시할 BinarySearchTree
-        highlighted_path: 삽입 또는 탐색 과정의 방문 경로
-        found_value: 탐색에 성공한 값
-        target_value: 현재 삽입·탐색 대상 값
+        tree: 출력할 이진 탐색 트리
+        highlighted_path: 삽입 또는 탐색 과정에서 방문한 노드
+        found_value: 탐색에 성공한 노드
+        target_value: 삽입 또는 탐색 대상 값
     """
 
-    highlighted_path = highlighted_path or []
+    del target_value  # 현재 버전에서는 별도로 사용하지 않음
+
+    highlighted_path = (
+        highlighted_path or []
+    )
 
     if tree.root is None:
         render_html(
             """
             <div class="tree-canvas">
                 <div class="empty-state">
-                    <div class="empty-state-icon">🌱</div>
+                    <div class="empty-state-icon">
+                        🌱
+                    </div>
+
                     트리가 비어 있습니다.<br>
                     숫자를 입력하고 삽입 버튼을 눌러 보세요.
                 </div>
@@ -227,29 +315,32 @@ def render_bst(
         )
         return
 
+    node_count = tree.size()
     tree_height = tree.height()
 
     canvas_width = max(
         900,
-        tree.size() * 115,
+        node_count * 125,
     )
 
     canvas_height = max(
-        380,
-        100 + tree_height * 115,
+        360,
+        110 + tree_height * 125,
     )
 
     positions = calculate_tree_positions(
         tree.root,
         width=canvas_width,
-        level_height=110,
-        top_margin=55,
+        level_height=120,
+        top_margin=65,
     )
 
     edge_elements: list[str] = []
     node_elements: list[str] = []
 
-    def collect_elements(node: Node | None) -> None:
+    def collect_elements(
+        node: Node | None,
+    ) -> None:
         if node is None:
             return
 
@@ -273,8 +364,13 @@ def render_bst(
                 )
             )
 
-        collect_elements(node.left)
-        collect_elements(node.right)
+        collect_elements(
+            node.left
+        )
+
+        collect_elements(
+            node.right
+        )
 
         node_elements.append(
             build_node_svg(
@@ -282,11 +378,37 @@ def render_bst(
                 positions,
                 highlighted_path,
                 found_value,
-                target_value,
             )
         )
 
-    collect_elements(tree.root)
+    collect_elements(
+        tree.root
+    )
+
+    svg_text = f"""
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 {canvas_width} {canvas_height}"
+        width="{canvas_width}"
+        height="{canvas_height}"
+    >
+        <rect
+            x="0"
+            y="0"
+            width="{canvas_width}"
+            height="{canvas_height}"
+            fill="#fafcfe"
+        />
+
+        {''.join(edge_elements)}
+
+        {''.join(node_elements)}
+    </svg>
+    """
+
+    image_uri = svg_to_data_uri(
+        svg_text
+    )
 
     path_description = ""
 
@@ -303,7 +425,9 @@ def render_bst(
             font-weight: 650;
         ">
             비교·이동 경로:
-            <strong>{escape(path_text)}</strong>
+            <strong>
+                {escape(path_text)}
+            </strong>
         </div>
         """
 
@@ -311,31 +435,38 @@ def render_bst(
         f"""
         {path_description}
 
-        <div class="tree-canvas">
-            <svg
-                viewBox="0 0 {canvas_width} {canvas_height}"
-                width="100%"
-                height="{canvas_height}"
-                role="img"
-                aria-label="이진 탐색 트리"
+        <div class="tree-canvas"
+             style="
+                 min-height: auto;
+                 padding: 0.5rem;
+                 overflow-x: auto;
+             ">
+
+            <img
+                src="{image_uri}"
+                alt="이진 탐색 트리 시각화"
+                style="
+                    display: block;
+                    width: 100%;
+                    min-width: 650px;
+                    height: auto;
+                    margin: 0 auto;
+                "
             >
-                {''.join(edge_elements)}
-                {''.join(node_elements)}
-            </svg>
         </div>
         """
     )
 
 
 # ============================================================
-# 4. 트리 상태
+# 7. 트리 상태 표시
 # ============================================================
 
 def render_bst_status(
     tree: BinarySearchTree,
 ) -> None:
     """
-    이진 탐색 트리의 현재 상태를 표시합니다.
+    이진 탐색 트리의 주요 상태를 표시합니다.
     """
 
     root_value = (
@@ -344,15 +475,18 @@ def render_bst_status(
         else "없음"
     )
 
-    minimum = (
-        tree.minimum()
-        if tree.minimum() is not None
+    minimum_value = tree.minimum()
+    maximum_value = tree.maximum()
+
+    minimum_text = (
+        minimum_value
+        if minimum_value is not None
         else "없음"
     )
 
-    maximum = (
-        tree.maximum()
-        if tree.maximum() is not None
+    maximum_text = (
+        maximum_value
+        if maximum_value is not None
         else "없음"
     )
 
@@ -364,28 +498,53 @@ def render_bst_status(
             </div>
 
             <div class="status-item">
-                <span class="status-label">노드 수</span>
-                <span class="status-value">{tree.size()}개</span>
+                <span class="status-label">
+                    노드 수
+                </span>
+
+                <span class="status-value">
+                    {tree.size()}개
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">트리 높이</span>
-                <span class="status-value">{tree.height()}</span>
+                <span class="status-label">
+                    트리 높이
+                </span>
+
+                <span class="status-value">
+                    {tree.height()}
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">ROOT</span>
-                <span class="status-value">{root_value}</span>
+                <span class="status-label">
+                    ROOT
+                </span>
+
+                <span class="status-value">
+                    {root_value}
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">가장 작은 값</span>
-                <span class="status-value">{minimum}</span>
+                <span class="status-label">
+                    가장 작은 값
+                </span>
+
+                <span class="status-value">
+                    {minimum_text}
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">가장 큰 값</span>
-                <span class="status-value">{maximum}</span>
+                <span class="status-label">
+                    가장 큰 값
+                </span>
+
+                <span class="status-value">
+                    {maximum_text}
+                </span>
             </div>
         </section>
         """
@@ -393,14 +552,14 @@ def render_bst_status(
 
 
 # ============================================================
-# 5. 연산 메시지
+# 8. 연산 결과 메시지
 # ============================================================
 
 def render_operation_message(
     operation_result: dict[str, Any] | None,
 ) -> None:
     """
-    가장 최근의 BST 연산 결과를 표시합니다.
+    가장 최근에 실행한 트리 연산 결과를 표시합니다.
     """
 
     if not operation_result:
@@ -448,7 +607,12 @@ def render_operation_message(
     render_html(
         f"""
         <div class="{box_class}">
-            <strong>{message}</strong><br>
+            <strong>
+                {message}
+            </strong>
+
+            <br>
+
             {concept}
         </div>
         """
@@ -456,7 +620,7 @@ def render_operation_message(
 
 
 # ============================================================
-# 6. 순회 결과
+# 9. 순회 결과 표시
 # ============================================================
 
 def render_traversal_result(
@@ -464,7 +628,7 @@ def render_traversal_result(
     values: list[int],
 ) -> None:
     """
-    트리 순회 결과를 노드와 화살표로 표시합니다.
+    전위·중위·후위 순회 결과를 표시합니다.
     """
 
     if not values:
@@ -473,10 +637,10 @@ def render_traversal_result(
         )
         return
 
-    node_elements = []
+    elements = []
 
     for index, value in enumerate(values):
-        node_elements.append(
+        elements.append(
             f"""
             <span class="visit-node">
                 {escape(str(value))}
@@ -485,7 +649,7 @@ def render_traversal_result(
         )
 
         if index < len(values) - 1:
-            node_elements.append(
+            elements.append(
                 """
                 <span class="visit-arrow">
                     →
@@ -501,7 +665,7 @@ def render_traversal_result(
             </div>
 
             <div class="visit-order">
-                {''.join(node_elements)}
+                {''.join(elements)}
             </div>
         </section>
         """
@@ -509,14 +673,14 @@ def render_traversal_result(
 
 
 # ============================================================
-# 7. Python 코드
+# 10. Python 코드 표시
 # ============================================================
 
 def render_bst_code(
     active_operation: str | None = None,
 ) -> None:
     """
-    BST의 핵심 Python 코드를 표시합니다.
+    이진 탐색 트리의 핵심 코드를 표시합니다.
     """
 
     operation_names = {
@@ -567,7 +731,7 @@ def search(node, value):
 
 
 # ============================================================
-# 8. 연산 기록
+# 11. 연산 기록 표시
 # ============================================================
 
 def render_operation_history(
