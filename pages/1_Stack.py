@@ -47,7 +47,7 @@ apply_common_style()
 
 
 # ============================================================
-# 2. 세션 상태 초기화
+# 2. Session State 초기화
 # ============================================================
 
 initialize_session_state(
@@ -92,7 +92,7 @@ initialize_session_state(
 
 
 # ============================================================
-# 3. Stack 객체 생성 및 상태 복원
+# 3. Stack 객체 생성
 # ============================================================
 
 stack = Stack(
@@ -106,21 +106,23 @@ stack.load_items(
 
 def save_stack_state() -> None:
     """
-    현재 Stack 값을 Session State에 저장합니다.
+    Stack 객체의 현재 값을 Session State에 저장합니다.
     """
 
-    st.session_state.stack_items = (
-        stack.to_list()
-    )
+    st.session_state.stack_items = stack.to_list()
 
 
 def reset_prediction() -> None:
     """
-    Stack 상태가 변경되면 이전 예측 결과를 초기화합니다.
+    Stack 상태가 바뀌면 이전 예측 결과를 초기화합니다.
     """
 
     st.session_state.stack_prediction_submitted = False
     st.session_state.stack_prediction_answer = None
+
+    # 기존 라디오 선택도 제거
+    if "stack_prediction_radio" in st.session_state:
+        del st.session_state["stack_prediction_radio"]
 
 
 def record_operation(
@@ -128,7 +130,7 @@ def record_operation(
     changes_stack: bool = False
 ) -> None:
     """
-    연산 결과를 저장하고 필요하면 예측 상태를 초기화합니다.
+    연산 결과와 Stack 상태를 저장합니다.
     """
 
     st.session_state.stack_last_result = result
@@ -141,7 +143,7 @@ def record_operation(
 
 
 # ============================================================
-# 4. 페이지 제목
+# 4. 페이지 상단
 # ============================================================
 
 render_page_header(
@@ -155,7 +157,7 @@ render_page_header(
 
 
 # ============================================================
-# 5. 개념 설명
+# 5. 개념 알아보기
 # ============================================================
 
 render_section_title(
@@ -176,7 +178,7 @@ concept_col1, concept_col2, concept_col3 = st.columns(3)
 with concept_col1:
     render_html(
         """
-        <div class="structure-card">
+        <article class="structure-card">
             <div class="structure-card-icon">📥</div>
 
             <div class="structure-card-title">
@@ -190,14 +192,14 @@ with concept_col1:
             <span class="structure-card-keyword">
                 데이터 넣기
             </span>
-        </div>
+        </article>
         """
     )
 
 with concept_col2:
     render_html(
         """
-        <div class="structure-card">
+        <article class="structure-card">
             <div class="structure-card-icon">📤</div>
 
             <div class="structure-card-title">
@@ -211,14 +213,14 @@ with concept_col2:
             <span class="structure-card-keyword">
                 데이터 꺼내기
             </span>
-        </div>
+        </article>
         """
     )
 
 with concept_col3:
     render_html(
         """
-        <div class="structure-card">
+        <article class="structure-card">
             <div class="structure-card-icon">👀</div>
 
             <div class="structure-card-title">
@@ -232,7 +234,7 @@ with concept_col3:
             <span class="structure-card-keyword">
                 TOP 확인하기
             </span>
-        </div>
+        </article>
         """
     )
 
@@ -267,11 +269,11 @@ with st.expander(
     )
 
     if selected_max_size != st.session_state.stack_max_size:
-        current_item_count = len(
+        current_count = len(
             st.session_state.stack_items
         )
 
-        if current_item_count > selected_max_size:
+        if current_count > selected_max_size:
             st.warning(
                 "현재 저장된 데이터 수보다 작은 크기로는 "
                 "변경할 수 없습니다."
@@ -395,6 +397,7 @@ with control_col:
         st.session_state.stack_last_result
     )
 
+
 with visual_col:
     st.subheader(
         "Stack 시각화"
@@ -423,7 +426,7 @@ with visual_col:
 
 
 # ============================================================
-# 7. 현재 상태 및 코드
+# 7. 현재 상태와 코드
 # ============================================================
 
 status_col1, status_col2 = st.columns(2)
@@ -459,7 +462,7 @@ render_section_title(
 
 render_html(
     """
-    <div class="quiz-box">
+    <section class="quiz-box">
         <div class="quiz-title">
             Pop을 실행하면 어떤 값이 나올까요?
         </div>
@@ -468,7 +471,7 @@ render_html(
             현재 Stack의 상태를 살펴보고,
             다음 Pop 연산으로 제거될 값을 예측해 보세요.
         </div>
-    </div>
+    </section>
     """
 )
 
@@ -476,11 +479,11 @@ current_items = st.session_state.stack_items
 
 if not current_items:
     st.info(
-        "예측 활동을 하려면 먼저 Stack에 값을 1개 이상 넣어 주세요."
+        "예측 활동을 하려면 Stack에 값을 1개 이상 넣어 주세요."
     )
 
 else:
-    # 같은 값이 여러 번 들어 있어도 선택 항목은 한 번씩 표시
+    # 같은 값이 여러 개 있어도 선택지에는 한 번만 표시
     unique_options = list(
         dict.fromkeys(current_items)
     )
@@ -500,6 +503,7 @@ else:
 
     if st.session_state.stack_prediction_submitted:
         correct_answer = current_items[-1]
+
         selected_answer = (
             st.session_state.stack_prediction_answer
         )
@@ -515,8 +519,8 @@ else:
                 <div class="quiz-result-correct">
                     정답입니다!<br>
                     현재 TOP은
-                    <strong>{escape(str(correct_answer))}</strong>이므로,
-                    Pop을 실행하면 이 값이 가장 먼저 나옵니다.
+                    <strong>{escape(str(correct_answer))}</strong>이며,
+                    Pop을 실행하면 이 값이 먼저 나옵니다.
                 </div>
                 """
             )
@@ -535,7 +539,7 @@ else:
 
 
 # ============================================================
-# 9. 학습 확인 문제
+# 9. 학습 확인
 # ============================================================
 
 render_section_title(
@@ -622,8 +626,7 @@ if st.session_state.stack_quiz_submitted:
             f"""
             <div class="quiz-result-wrong">
                 3문제 중 {score}문제를 맞혔습니다.<br>
-                Stack 시각화를 다시 조작하며
-                LIFO 원리를 확인해 보세요.
+                시각화를 다시 조작하며 LIFO 원리를 확인해 보세요.
             </div>
             """
         )

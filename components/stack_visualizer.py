@@ -1,12 +1,14 @@
 """
-Stack 자료구조를 HTML로 시각화하는 모듈입니다.
+Stack 자료구조 시각화 모듈입니다.
 
 주요 기능
 - Stack 블록 시각화
+- 전체 저장 공간 표시
 - TOP 표시
-- 빈 공간 표시
 - 현재 상태 표시
-- 연산 결과 및 기록 표시
+- 최근 연산 메시지
+- Python 코드 표시
+- 연산 기록 표시
 """
 
 from html import escape
@@ -18,19 +20,19 @@ from modules.common import render_html
 
 
 # ============================================================
-# 1. 값 출력 형식
+# 1. 값 변환
 # ============================================================
 
 def format_value(value: Any) -> str:
     """
-    값을 HTML에 안전하게 표시할 수 있도록 변환합니다.
+    사용자 입력값을 HTML에 안전하게 표시합니다.
     """
 
     return escape(str(value))
 
 
 # ============================================================
-# 2. 현재 데이터만 시각화
+# 2. 현재 데이터 시각화
 # ============================================================
 
 def render_stack(
@@ -38,9 +40,13 @@ def render_stack(
     max_size: int
 ) -> None:
     """
-    현재 Stack 데이터를 세로 구조로 표시합니다.
+    Stack 데이터를 위에서 아래로 표시합니다.
 
-    가장 최근에 들어온 값이 화면의 가장 위에 표시됩니다.
+    화면 맨 위:
+        가장 최근에 삽입한 TOP
+
+    화면 맨 아래:
+        가장 먼저 삽입한 데이터
     """
 
     if max_size <= 0:
@@ -57,49 +63,48 @@ def render_stack(
                 <div class="stack-empty">
                     <div class="empty-state-icon">📭</div>
                     Stack이 비어 있습니다.<br>
-                    값을 입력한 뒤 Push 버튼을 눌러 보세요.
+                    값을 입력하고 Push를 눌러 보세요.
                 </div>
             </div>
             """
         )
         return
 
-    item_blocks = []
+    blocks = []
 
-    # 가장 최근에 삽입된 값부터 화면 위에 표시
-    reversed_items = list(reversed(items))
-
-    for display_index, value in enumerate(reversed_items):
+    # 마지막 데이터가 TOP이므로 역순으로 표시
+    for display_index, value in enumerate(reversed(items)):
         is_top = display_index == 0
 
-        item_class = "stack-item"
-        top_label = ""
+        classes = ["stack-item"]
 
         if is_top:
-            item_class += " stack-item-top"
+            classes.append("stack-item-top")
 
-            top_label = (
-                '<div class="stack-label">'
-                'TOP · 가장 먼저 나올 데이터'
-                '</div>'
-            )
+        class_name = " ".join(classes)
 
-        item_blocks.append(
+        top_text = (
+            '<div class="stack-label">'
+            'TOP · 가장 먼저 나올 데이터'
+            '</div>'
+            if is_top
+            else ""
+        )
+
+        blocks.append(
             f"""
-            <div class="{item_class}">
-                {top_label}
+            <div class="{class_name}">
+                {top_text}
                 <div>{format_value(value)}</div>
             </div>
             """
         )
 
-    stack_content = "\n".join(item_blocks)
-
     render_html(
         f"""
         <div class="stack-wrapper"
              style="flex-direction: column;">
-            {stack_content}
+            {''.join(blocks)}
         </div>
         """
     )
@@ -114,7 +119,7 @@ def render_stack_slots(
     max_size: int
 ) -> None:
     """
-    사용 중인 공간과 빈 공간을 함께 표시합니다.
+    데이터와 빈 저장 공간을 함께 표시합니다.
     """
 
     if max_size <= 0:
@@ -123,58 +128,59 @@ def render_stack_slots(
         )
         return
 
+    blocks = []
+
     used_count = len(items)
     empty_count = max_size - used_count
 
-    slot_blocks = []
-
-    # 화면 위쪽부터 TOP → 하단 순서로 표시
+    # 빈 공간은 위쪽, 사용 데이터는 아래쪽에 배치하되
+    # 사용 데이터 중 TOP은 가장 위에 표시
     for stack_index in range(max_size - 1, -1, -1):
-        if stack_index < used_count:
-            value = items[stack_index]
-            is_top = stack_index == used_count - 1
 
-            item_class = "stack-item"
-            label = ""
-
-            if is_top:
-                item_class += " stack-item-top"
-                label = (
-                    '<div class="stack-label">'
-                    'TOP'
-                    '</div>'
-                )
-
-            slot_blocks.append(
-                f"""
-                <div class="{item_class}">
-                    {label}
-                    <div>{format_value(value)}</div>
-                </div>
-                """
-            )
-
-        else:
-            slot_blocks.append(
+        if stack_index >= used_count:
+            blocks.append(
                 """
                 <div class="stack-item"
                      style="
                          border-style: dashed;
                          background-color: transparent;
-                         color: #9aa8b5;
+                         color: #8a99a8;
                      ">
                     빈 공간
                 </div>
                 """
             )
 
-    slots_html = "\n".join(slot_blocks)
+        else:
+            value = items[stack_index]
+            is_top = stack_index == used_count - 1
+
+            class_name = (
+                "stack-item stack-item-top"
+                if is_top
+                else "stack-item"
+            )
+
+            top_text = (
+                '<div class="stack-label">TOP</div>'
+                if is_top
+                else ""
+            )
+
+            blocks.append(
+                f"""
+                <div class="{class_name}">
+                    {top_text}
+                    <div>{format_value(value)}</div>
+                </div>
+                """
+            )
 
     render_html(
         f"""
         <div class="stack-wrapper"
              style="flex-direction: column;">
-            {slots_html}
+            {''.join(blocks)}
         </div>
         """
     )
@@ -186,7 +192,7 @@ def render_stack_slots(
 
 
 # ============================================================
-# 4. Stack 상태 표시
+# 4. 현재 상태 패널
 # ============================================================
 
 def render_stack_status(
@@ -194,7 +200,7 @@ def render_stack_status(
     max_size: int
 ) -> None:
     """
-    Stack의 주요 상태를 정보 패널로 표시합니다.
+    Stack의 현재 상태를 표 형태로 표시합니다.
     """
 
     current_size = len(items)
@@ -206,7 +212,7 @@ def render_stack_status(
         else "없음"
     )
 
-    stack_status = (
+    state_text = (
         "가득 참"
         if current_size >= max_size
         else "저장 가능"
@@ -214,54 +220,78 @@ def render_stack_status(
 
     render_html(
         f"""
-        <div class="status-panel">
+        <section class="status-panel">
             <div class="status-title">
                 현재 Stack 상태
             </div>
 
             <div class="status-item">
-                <span class="status-label">저장된 데이터 수</span>
-                <span class="status-value">{current_size}개</span>
+                <span class="status-label">
+                    저장된 데이터 수
+                </span>
+                <span class="status-value">
+                    {current_size}개
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">최대 저장 가능 수</span>
-                <span class="status-value">{max_size}개</span>
+                <span class="status-label">
+                    최대 저장 가능 수
+                </span>
+                <span class="status-value">
+                    {max_size}개
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">남은 공간</span>
-                <span class="status-value">{remaining_space}개</span>
+                <span class="status-label">
+                    남은 공간
+                </span>
+                <span class="status-value">
+                    {remaining_space}개
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">현재 TOP</span>
-                <span class="status-value">{top_value}</span>
+                <span class="status-label">
+                    현재 TOP
+                </span>
+                <span class="status-value">
+                    {top_value}
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">다음 Pop 값</span>
-                <span class="status-value">{top_value}</span>
+                <span class="status-label">
+                    다음 Pop 값
+                </span>
+                <span class="status-value">
+                    {top_value}
+                </span>
             </div>
 
             <div class="status-item">
-                <span class="status-label">Stack 상태</span>
-                <span class="status-value">{stack_status}</span>
+                <span class="status-label">
+                    현재 상태
+                </span>
+                <span class="status-value">
+                    {state_text}
+                </span>
             </div>
-        </div>
+        </section>
         """
     )
 
 
 # ============================================================
-# 5. 최근 연산 메시지
+# 5. 연산 메시지
 # ============================================================
 
 def render_operation_message(
     operation_result: dict | None
 ) -> None:
     """
-    최근 실행한 Stack 연산 결과를 표시합니다.
+    가장 최근에 실행한 연산 결과를 표시합니다.
     """
 
     if not operation_result:
@@ -309,7 +339,8 @@ def render_operation_message(
     render_html(
         f"""
         <div class="{box_class}">
-            <strong>{message}</strong><br>
+            <strong>{message}</strong>
+            <br>
             {concept}
         </div>
         """
@@ -317,14 +348,14 @@ def render_operation_message(
 
 
 # ============================================================
-# 6. 간단한 코드 표시
+# 6. Python 코드
 # ============================================================
 
 def render_stack_code(
     active_operation: str | None = None
 ) -> None:
     """
-    Stack의 핵심 Python 코드를 표시합니다.
+    Stack 핵심 코드를 실제 코드 블록으로 출력합니다.
     """
 
     operation_names = {
@@ -339,26 +370,24 @@ def render_stack_code(
         "연산 없음"
     )
 
-    code_text = (
-        f"# 현재 실행한 연산: {active_name}\n\n"
-        "def push(value):\n"
-        "    stack.append(value)\n\n"
-        "def pop():\n"
-        "    return stack.pop()\n\n"
-        "def peek():\n"
-        "    return stack[-1]"
+    st.markdown(
+        f"**현재 실행한 연산: `{active_name}`**"
     )
 
-    render_html(
-        f"""
-        <div class="data-code">
-            <pre style="
-                margin: 0;
-                white-space: pre-wrap;
-                font-family: Consolas, 'Courier New', monospace;
-            ">{escape(code_text)}</pre>
-        </div>
-        """
+    code_text = """def push(value):
+    stack.append(value)
+
+def pop():
+    return stack.pop()
+
+def peek():
+    return stack[-1]
+"""
+
+    st.code(
+        code_text,
+        language="python",
+        line_numbers=True
     )
 
 
@@ -379,12 +408,10 @@ def render_operation_history(
         )
         return
 
-    recent_history = history[-10:]
-
     history_blocks = []
 
     for number, item in enumerate(
-        reversed(recent_history),
+        reversed(history[-10:]),
         start=1
     ):
         action = escape(
@@ -413,16 +440,14 @@ def render_operation_history(
             """
         )
 
-    history_html = "\n".join(history_blocks)
-
     render_html(
         f"""
-        <div class="step-panel">
+        <section class="step-panel">
             <div class="step-title">
                 최근 연산 기록
             </div>
 
-            {history_html}
-        </div>
+            {''.join(history_blocks)}
+        </section>
         """
     )
