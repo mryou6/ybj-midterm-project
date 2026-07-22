@@ -5,11 +5,14 @@ Data Structure Playground에서 공통으로 사용하는 기능을 제공합니
 - 프로젝트 경로 관리
 - 공통 CSS 적용
 - Noto Sans KR 폰트 적용
-- 공통 페이지 설정
+- HTML 안전 출력
 - 세션 상태 초기화
+- 공통 페이지 요소 출력
 """
 
 import base64
+import textwrap
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +23,6 @@ import streamlit as st
 # 1. 프로젝트 경로 설정
 # ============================================================
 
-# common.py는 modules 폴더 안에 있으므로
-# parent.parent를 사용하면 프로젝트의 최상위 폴더가 됩니다.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 ASSETS_DIR = BASE_DIR / "assets"
@@ -34,21 +35,32 @@ COMPONENTS_DIR = BASE_DIR / "components"
 
 
 # ============================================================
-# 2. 파일을 Base64 문자열로 변환
+# 2. 공통 HTML 출력
+# ============================================================
+
+def render_html(html_text: str) -> None:
+    """
+    들여쓰기를 제거한 HTML을 Streamlit 화면에 출력합니다.
+
+    여러 줄 문자열 앞에 공백이 있으면 Streamlit이 HTML을
+    코드 블록으로 해석할 수 있으므로 textwrap.dedent()를 사용합니다.
+    """
+
+    cleaned_html = textwrap.dedent(html_text).strip()
+
+    st.markdown(
+        cleaned_html,
+        unsafe_allow_html=True
+    )
+
+
+# ============================================================
+# 3. 파일 Base64 변환
 # ============================================================
 
 def file_to_base64(file_path: Path) -> str:
     """
     폰트나 이미지 파일을 Base64 문자열로 변환합니다.
-
-    Args:
-        file_path: 변환할 파일 경로
-
-    Returns:
-        Base64로 인코딩된 문자열
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
     """
 
     if not file_path.exists():
@@ -56,23 +68,18 @@ def file_to_base64(file_path: Path) -> str:
             f"파일을 찾을 수 없습니다: {file_path}"
         )
 
-    encoded_data = base64.b64encode(
+    return base64.b64encode(
         file_path.read_bytes()
     ).decode("utf-8")
 
-    return encoded_data
-
 
 # ============================================================
-# 3. Noto Sans KR 폰트 적용
+# 4. Noto Sans KR 폰트 적용
 # ============================================================
 
 def load_fonts() -> None:
     """
-    fonts 폴더의 Noto Sans KR 폰트를 Streamlit에 적용합니다.
-
-    폰트 파일을 Base64로 변환하므로 로컬 환경뿐만 아니라
-    Streamlit Cloud에서도 동일하게 적용할 수 있습니다.
+    fonts 폴더에 있는 Noto Sans KR 폰트를 등록합니다.
     """
 
     font_settings = [
@@ -99,17 +106,19 @@ def load_fonts() -> None:
             encoded_font = file_to_base64(font_path)
 
             font_face_rules.append(
-                f"""
-                @font-face {{
-                    font-family: "Noto Sans KR";
-                    src: url(
-                        data:font/ttf;base64,{encoded_font}
-                    ) format("truetype");
-                    font-weight: {font_weight};
-                    font-style: normal;
-                    font-display: swap;
-                }}
-                """
+                textwrap.dedent(
+                    f"""
+                    @font-face {{
+                        font-family: "Noto Sans KR";
+                        src: url(
+                            data:font/ttf;base64,{encoded_font}
+                        ) format("truetype");
+                        font-weight: {font_weight};
+                        font-style: normal;
+                        font-display: swap;
+                    }}
+                    """
+                ).strip()
             )
 
         except (OSError, ValueError):
@@ -120,7 +129,7 @@ def load_fonts() -> None:
 
     font_css = "\n".join(font_face_rules)
 
-    st.markdown(
+    render_html(
         f"""
         <style>
         {font_css}
@@ -140,26 +149,24 @@ def load_fonts() -> None:
                 sans-serif;
         }}
         </style>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 
 # ============================================================
-# 4. 공통 CSS 적용
+# 5. 공통 CSS 적용
 # ============================================================
 
 def load_css() -> None:
     """
-    assets/styles/style.css 파일을 읽어 Streamlit에 적용합니다.
+    assets/styles/style.css를 읽어 적용합니다.
     """
 
     css_path = STYLES_DIR / "style.css"
 
     if not css_path.exists():
         st.warning(
-            "공통 스타일 파일을 찾지 못했습니다: "
-            f"{css_path}"
+            f"공통 스타일 파일을 찾지 못했습니다: {css_path}"
         )
         return
 
@@ -168,9 +175,12 @@ def load_css() -> None:
             encoding="utf-8"
         )
 
-        st.markdown(
-            f"<style>{css_text}</style>",
-            unsafe_allow_html=True
+        render_html(
+            f"""
+            <style>
+            {css_text}
+            </style>
+            """
         )
 
     except UnicodeDecodeError:
@@ -184,17 +194,9 @@ def load_css() -> None:
         )
 
 
-# ============================================================
-# 5. 공통 디자인 적용
-# ============================================================
-
 def apply_common_style() -> None:
     """
-    모든 Streamlit 페이지에 폰트와 CSS를 적용합니다.
-
-    각 페이지에서 다음과 같이 호출합니다.
-
-    apply_common_style()
+    폰트와 공통 CSS를 모두 적용합니다.
     """
 
     load_fonts()
@@ -210,11 +212,7 @@ def initialize_session_state(
     default_value: Any
 ) -> None:
     """
-    지정한 키가 세션 상태에 없으면 기본값을 저장합니다.
-
-    Args:
-        key: 세션 상태 키
-        default_value: 처음 사용할 기본값
+    지정한 키가 Session State에 없으면 기본값을 저장합니다.
     """
 
     if key not in st.session_state:
@@ -223,7 +221,7 @@ def initialize_session_state(
 
 def initialize_common_states() -> None:
     """
-    앱 전체에서 공통으로 사용할 세션 상태를 초기화합니다.
+    앱 전체에서 공통으로 사용할 상태를 초기화합니다.
     """
 
     initialize_session_state(
@@ -247,32 +245,30 @@ def render_page_header(
     icon: str = "🧩"
 ) -> None:
     """
-    각 자료구조 페이지의 공통 제목 영역을 출력합니다.
-
-    Args:
-        title: 페이지 제목
-        description: 페이지 설명
-        icon: 제목 앞에 표시할 이모지
+    각 페이지의 제목 영역을 출력합니다.
     """
 
-    st.markdown(
+    safe_title = escape(title)
+    safe_description = escape(description)
+    safe_icon = escape(icon)
+
+    render_html(
         f"""
         <div class="main-hero">
             <h1 class="main-hero-title">
-                {icon} {title}
+                {safe_icon} {safe_title}
             </h1>
 
             <p class="main-hero-subtitle">
-                {description}
+                {safe_description}
             </p>
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 
 # ============================================================
-# 8. 공통 개념 설명 상자
+# 8. 개념 설명 상자
 # ============================================================
 
 def render_concept_box(
@@ -280,22 +276,24 @@ def render_concept_box(
     text: str
 ) -> None:
     """
-    자료구조의 핵심 개념을 설명하는 상자를 출력합니다.
+    자료구조의 핵심 개념 설명 상자를 출력합니다.
     """
 
-    st.markdown(
+    safe_title = escape(title)
+    safe_text = escape(text)
+
+    render_html(
         f"""
         <div class="concept-box">
             <div class="concept-title">
-                {title}
+                {safe_title}
             </div>
 
-            <p class="concept-text">
-                {text}
-            </p>
+            <div class="concept-text">
+                {safe_text}
+            </div>
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 
@@ -305,16 +303,16 @@ def render_concept_box(
 
 def render_message(
     message: str,
-    message_type: str = "info"
+    message_type: str = "info",
+    allow_html: bool = False
 ) -> None:
     """
     CSS가 적용된 공통 메시지 상자를 출력합니다.
 
-    message_type
-    - info
-    - success
-    - warning
-    - error
+    Args:
+        message: 출력할 메시지
+        message_type: info, success, warning, error
+        allow_html: 메시지 내부 HTML 허용 여부
     """
 
     allowed_types = {
@@ -327,31 +325,53 @@ def render_message(
     if message_type not in allowed_types:
         message_type = "info"
 
-    st.markdown(
+    displayed_message = (
+        message
+        if allow_html
+        else escape(message)
+    )
+
+    render_html(
         f"""
         <div class="{message_type}-box">
-            {message}
+            {displayed_message}
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 
 # ============================================================
-# 10. 공통 하단 문구
+# 10. 섹션 제목
+# ============================================================
+
+def render_section_title(title: str) -> None:
+    """
+    공통 섹션 제목을 출력합니다.
+    """
+
+    render_html(
+        f"""
+        <div class="section-title">
+            {escape(title)}
+        </div>
+        """
+    )
+
+
+# ============================================================
+# 11. 하단 문구
 # ============================================================
 
 def render_footer() -> None:
     """
-    각 페이지 아래에 공통 안내 문구를 출력합니다.
+    공통 하단 문구를 출력합니다.
     """
 
-    st.markdown(
+    render_html(
         """
         <div class="footer-note">
             Data Structure Playground<br>
             직접 조작하고 관찰하며 자료구조의 원리를 알아보세요.
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )

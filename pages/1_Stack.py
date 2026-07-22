@@ -4,11 +4,11 @@ Stack 자료구조 체험 페이지입니다.
 학습 흐름
 1. Stack 개념 알아보기
 2. Stack 직접 조작하기
-3. 현재 상태 관찰하기
-4. 결과 예측하기
-5. 간단한 학습 문제 풀기
+3. 결과 예측하기
+4. 학습 확인하기
 """
 
+from html import escape
 
 import streamlit as st
 
@@ -25,8 +25,10 @@ from modules.common import (
     initialize_session_state,
     render_concept_box,
     render_footer,
+    render_html,
     render_message,
     render_page_header,
+    render_section_title,
 )
 from modules.stack_logic import Stack
 
@@ -104,7 +106,7 @@ stack.load_items(
 
 def save_stack_state() -> None:
     """
-    Stack 객체의 현재 상태를 Session State에 저장합니다.
+    현재 Stack 값을 Session State에 저장합니다.
     """
 
     st.session_state.stack_items = (
@@ -112,22 +114,30 @@ def save_stack_state() -> None:
     )
 
 
+def reset_prediction() -> None:
+    """
+    Stack 상태가 변경되면 이전 예측 결과를 초기화합니다.
+    """
+
+    st.session_state.stack_prediction_submitted = False
+    st.session_state.stack_prediction_answer = None
+
+
 def record_operation(
-    result: dict
+    result: dict,
+    changes_stack: bool = False
 ) -> None:
     """
-    실행한 연산의 결과를 세션 상태에 기록합니다.
+    연산 결과를 저장하고 필요하면 예측 상태를 초기화합니다.
     """
 
-    st.session_state.stack_last_result = (
-        result
-    )
-
-    st.session_state.stack_history.append(
-        result
-    )
+    st.session_state.stack_last_result = result
+    st.session_state.stack_history.append(result)
 
     save_stack_state()
+
+    if changes_stack:
+        reset_prediction()
 
 
 # ============================================================
@@ -145,12 +155,11 @@ render_page_header(
 
 
 # ============================================================
-# 5. Stack 개념 설명
+# 5. 개념 설명
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">1. Stack은 무엇인가요?</div>',
-    unsafe_allow_html=True
+render_section_title(
+    "1. Stack은 무엇인가요?"
 )
 
 render_concept_box(
@@ -165,66 +174,66 @@ render_concept_box(
 concept_col1, concept_col2, concept_col3 = st.columns(3)
 
 with concept_col1:
-    st.markdown(
+    render_html(
         """
         <div class="structure-card">
-            <div class="structure-card-icon">
-                📥
-            </div>
+            <div class="structure-card-icon">📥</div>
+
             <div class="structure-card-title">
                 Push
             </div>
-            <p class="structure-card-description">
+
+            <div class="structure-card-description">
                 새로운 데이터를 Stack의 가장 위에 추가합니다.
-            </p>
+            </div>
+
             <span class="structure-card-keyword">
                 데이터 넣기
             </span>
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 with concept_col2:
-    st.markdown(
+    render_html(
         """
         <div class="structure-card">
-            <div class="structure-card-icon">
-                📤
-            </div>
+            <div class="structure-card-icon">📤</div>
+
             <div class="structure-card-title">
                 Pop
             </div>
-            <p class="structure-card-description">
+
+            <div class="structure-card-description">
                 Stack의 가장 위에 있는 데이터를 꺼냅니다.
-            </p>
+            </div>
+
             <span class="structure-card-keyword">
                 데이터 꺼내기
             </span>
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 with concept_col3:
-    st.markdown(
+    render_html(
         """
         <div class="structure-card">
-            <div class="structure-card-icon">
-                👀
-            </div>
+            <div class="structure-card-icon">👀</div>
+
             <div class="structure-card-title">
                 Peek
             </div>
-            <p class="structure-card-description">
+
+            <div class="structure-card-description">
                 데이터를 꺼내지 않고 가장 위의 값만 확인합니다.
-            </p>
+            </div>
+
             <span class="structure-card-keyword">
                 TOP 확인하기
             </span>
         </div>
-        """,
-        unsafe_allow_html=True
+        """
     )
 
 render_message(
@@ -232,17 +241,17 @@ render_message(
         "<strong>LIFO</strong>는 Last In, First Out의 약자로, "
         "마지막에 들어온 데이터가 가장 먼저 나오는 방식을 뜻합니다."
     ),
-    "info"
+    message_type="info",
+    allow_html=True
 )
 
 
 # ============================================================
-# 6. Stack 크기 설정
+# 6. Stack 직접 체험
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">2. Stack 직접 체험하기</div>',
-    unsafe_allow_html=True
+render_section_title(
+    "2. Stack 직접 체험하기"
 )
 
 with st.expander(
@@ -258,40 +267,39 @@ with st.expander(
     )
 
     if selected_max_size != st.session_state.stack_max_size:
-        if len(st.session_state.stack_items) > selected_max_size:
+        current_item_count = len(
+            st.session_state.stack_items
+        )
+
+        if current_item_count > selected_max_size:
             st.warning(
                 "현재 저장된 데이터 수보다 작은 크기로는 "
                 "변경할 수 없습니다."
             )
 
         else:
-            st.session_state.stack_max_size = (
-                selected_max_size
-            )
-
+            st.session_state.stack_max_size = selected_max_size
             stack.max_size = selected_max_size
 
             st.success(
-                f"Stack 최대 크기를 "
-                f"{selected_max_size}로 변경했습니다."
+                f"Stack 최대 크기를 {selected_max_size}로 변경했습니다."
             )
 
-
-# ============================================================
-# 7. Stack 조작 영역
-# ============================================================
 
 control_col, visual_col = st.columns(
     [1, 1.6]
 )
 
 with control_col:
-    st.subheader("Stack 조작")
+    st.subheader(
+        "Stack 조작"
+    )
 
     input_value = st.text_input(
         "Stack에 넣을 값",
         placeholder="예: 10, 사과, A",
-        max_chars=20
+        max_chars=20,
+        key="stack_input_value"
     )
 
     button_col1, button_col2 = st.columns(2)
@@ -327,17 +335,17 @@ with control_col:
         cleaned_value = input_value.strip()
 
         if not cleaned_value:
-            st.session_state.stack_last_result = {
+            result = {
                 "success": False,
                 "action": "push",
                 "value": None,
-                "message": (
-                    "Stack에 넣을 값을 입력해 주세요."
-                ),
+                "message": "Stack에 넣을 값을 입력해 주세요.",
                 "concept": (
                     "Push 연산을 실행하려면 먼저 데이터가 필요합니다."
                 ),
             }
+
+            st.session_state.stack_last_result = result
 
         else:
             result = stack.push(
@@ -345,7 +353,8 @@ with control_col:
             )
 
             record_operation(
-                result
+                result,
+                changes_stack=result["success"]
             )
 
             st.rerun()
@@ -354,7 +363,8 @@ with control_col:
         result = stack.pop()
 
         record_operation(
-            result
+            result,
+            changes_stack=result["success"]
         )
 
         st.rerun()
@@ -363,7 +373,8 @@ with control_col:
         result = stack.peek()
 
         record_operation(
-            result
+            result,
+            changes_stack=False
         )
 
         st.rerun()
@@ -372,10 +383,10 @@ with control_col:
         result = stack.clear()
 
         record_operation(
-            result
+            result,
+            changes_stack=True
         )
 
-        st.session_state.stack_prediction_submitted = False
         st.session_state.stack_quiz_submitted = False
 
         st.rerun()
@@ -385,7 +396,9 @@ with control_col:
     )
 
 with visual_col:
-    st.subheader("Stack 시각화")
+    st.subheader(
+        "Stack 시각화"
+    )
 
     display_mode = st.radio(
         "표시 방식",
@@ -410,12 +423,10 @@ with visual_col:
 
 
 # ============================================================
-# 8. 현재 상태 확인
+# 7. 현재 상태 및 코드
 # ============================================================
 
-status_col1, status_col2 = st.columns(
-    [1, 1]
-)
+status_col1, status_col2 = st.columns(2)
 
 with status_col1:
     render_stack_status(
@@ -439,15 +450,14 @@ with status_col2:
 
 
 # ============================================================
-# 9. 결과 예측 활동
+# 8. 결과 예측
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">3. 결과 예측하기</div>',
-    unsafe_allow_html=True
+render_section_title(
+    "3. 결과 예측하기"
 )
 
-st.markdown(
+render_html(
     """
     <div class="quiz-box">
         <div class="quiz-title">
@@ -459,13 +469,10 @@ st.markdown(
             다음 Pop 연산으로 제거될 값을 예측해 보세요.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True
+    """
 )
 
-current_items = (
-    st.session_state.stack_items
-)
+current_items = st.session_state.stack_items
 
 if not current_items:
     st.info(
@@ -473,6 +480,7 @@ if not current_items:
     )
 
 else:
+    # 같은 값이 여러 번 들어 있어도 선택 항목은 한 번씩 표시
     unique_options = list(
         dict.fromkeys(current_items)
     )
@@ -480,19 +488,18 @@ else:
     prediction = st.radio(
         "다음에 나올 값 선택",
         options=unique_options,
-        index=None
+        index=None,
+        key="stack_prediction_radio"
     )
 
     if st.button(
-        "예측 결과 확인",
-        use_container_width=False
+        "예측 결과 확인"
     ):
         st.session_state.stack_prediction_submitted = True
         st.session_state.stack_prediction_answer = prediction
 
     if st.session_state.stack_prediction_submitted:
         correct_answer = current_items[-1]
-
         selected_answer = (
             st.session_state.stack_prediction_answer
         )
@@ -503,37 +510,36 @@ else:
             )
 
         elif selected_answer == correct_answer:
-            st.markdown(
+            render_html(
                 f"""
                 <div class="quiz-result-correct">
-                    정답입니다! 현재 TOP은
-                    {correct_answer}이므로 Pop을 실행하면
-                    {correct_answer}이(가) 나옵니다.
+                    정답입니다!<br>
+                    현재 TOP은
+                    <strong>{escape(str(correct_answer))}</strong>이므로,
+                    Pop을 실행하면 이 값이 가장 먼저 나옵니다.
                 </div>
-                """,
-                unsafe_allow_html=True
+                """
             )
 
         else:
-            st.markdown(
+            render_html(
                 f"""
                 <div class="quiz-result-wrong">
-                    다시 생각해 보세요. Stack은 마지막에 들어온
-                    값이 먼저 나옵니다. 현재 TOP은
-                    {correct_answer}입니다.
+                    다시 생각해 보세요.<br>
+                    Stack은 마지막에 들어온 값이 먼저 나옵니다.
+                    현재 TOP은
+                    <strong>{escape(str(correct_answer))}</strong>입니다.
                 </div>
-                """,
-                unsafe_allow_html=True
+                """
             )
 
 
 # ============================================================
-# 10. 학습 확인 문제
+# 9. 학습 확인 문제
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">4. 학습 확인하기</div>',
-    unsafe_allow_html=True
+render_section_title(
+    "4. 학습 확인하기"
 )
 
 with st.form(
@@ -560,7 +566,7 @@ with st.form(
     )
 
     question3 = st.radio(
-        "3. Stack의 가장 위에 있는 값을 제거하지 않고 확인하는 연산은?",
+        "3. 가장 위의 값을 제거하지 않고 확인하는 연산은?",
         [
             "Push",
             "Pop",
@@ -576,9 +582,7 @@ with st.form(
 if quiz_submitted:
     score = 0
 
-    if question1 == (
-        "마지막에 들어온 데이터가 먼저 나온다."
-    ):
+    if question1 == "마지막에 들어온 데이터가 먼저 나온다.":
         score += 1
 
     if question2 == "Push":
@@ -594,42 +598,39 @@ if st.session_state.stack_quiz_submitted:
     score = st.session_state.stack_quiz_score
 
     if score == 3:
-        st.markdown(
+        render_html(
             """
             <div class="quiz-result-correct">
-                3문제를 모두 맞혔습니다!
+                3문제를 모두 맞혔습니다!<br>
                 Stack의 기본 원리를 잘 이해했습니다.
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
 
     elif score == 2:
-        st.markdown(
+        render_html(
             """
             <div class="warning-box">
-                3문제 중 2문제를 맞혔습니다.
+                3문제 중 2문제를 맞혔습니다.<br>
                 Push, Pop, Peek의 차이를 한 번 더 확인해 보세요.
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
 
     else:
-        st.markdown(
+        render_html(
             f"""
             <div class="quiz-result-wrong">
-                3문제 중 {score}문제를 맞혔습니다.
+                3문제 중 {score}문제를 맞혔습니다.<br>
                 Stack 시각화를 다시 조작하며
                 LIFO 원리를 확인해 보세요.
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
 
 
 # ============================================================
-# 11. 연산 기록
+# 10. 연산 기록
 # ============================================================
 
 with st.expander(
@@ -650,7 +651,7 @@ with st.expander(
 
 
 # ============================================================
-# 12. 페이지 하단
+# 11. 페이지 하단
 # ============================================================
 
 render_footer()
