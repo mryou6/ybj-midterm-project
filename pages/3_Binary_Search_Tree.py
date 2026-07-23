@@ -2,11 +2,11 @@
 Binary Search Tree 체험 페이지입니다.
 
 학습 흐름
-1. 이진 탐색 트리 개념 알아보기
-2. 숫자 삽입 및 탐색 체험하기
-3. 트리 순회 체험하기
-4. 삽입 위치 예측하기
-5. 학습 확인하기
+1. BST 개념 알아보기
+2. 숫자 삽입 및 탐색
+3. 트리 순회
+4. 삽입 방향 예측
+5. 학습 확인
 """
 
 from html import escape
@@ -51,65 +51,18 @@ apply_common_style()
 # 2. Session State 초기화
 # ============================================================
 
-initialize_session_state(
-    "bst_values",
-    [],
-)
-
-initialize_session_state(
-    "bst_last_result",
-    None,
-)
-
-initialize_session_state(
-    "bst_history",
-    [],
-)
-
-initialize_session_state(
-    "bst_highlighted_path",
-    [],
-)
-
-initialize_session_state(
-    "bst_found_value",
-    None,
-)
-
-initialize_session_state(
-    "bst_target_value",
-    None,
-)
-
-initialize_session_state(
-    "bst_traversal_name",
-    None,
-)
-
-initialize_session_state(
-    "bst_traversal_values",
-    [],
-)
-
-initialize_session_state(
-    "bst_quiz_score",
-    0,
-)
-
-initialize_session_state(
-    "bst_quiz_submitted",
-    False,
-)
-
-initialize_session_state(
-    "bst_prediction_submitted",
-    False,
-)
-
-initialize_session_state(
-    "bst_prediction_answer",
-    None,
-)
+initialize_session_state("bst_values", [])
+initialize_session_state("bst_last_result", None)
+initialize_session_state("bst_history", [])
+initialize_session_state("bst_highlighted_path", [])
+initialize_session_state("bst_found_value", None)
+initialize_session_state("bst_target_value", None)
+initialize_session_state("bst_traversal_name", None)
+initialize_session_state("bst_traversal_values", [])
+initialize_session_state("bst_quiz_score", 0)
+initialize_session_state("bst_quiz_submitted", False)
+initialize_session_state("bst_prediction_submitted", False)
+initialize_session_state("bst_prediction_answer", None)
 
 
 # ============================================================
@@ -123,19 +76,46 @@ tree.load_values(
 )
 
 
-def save_tree_state() -> None:
+# ============================================================
+# 4. 공통 함수
+# ============================================================
+
+def parse_bst_values(
+    input_text: str,
+) -> tuple[list[int], list[str]]:
     """
-    현재 트리 값을 Session State에 저장합니다.
+    쉼표로 구분된 문자열을 정수 목록으로 변환합니다.
+
+    Returns:
+        정상 숫자 목록, 잘못 입력된 값 목록
     """
 
+    parsed_values: list[int] = []
+    invalid_values: list[str] = []
+
+    for raw_value in input_text.split(","):
+        cleaned_value = raw_value.strip()
+
+        if not cleaned_value:
+            continue
+
+        try:
+            integer_value = int(cleaned_value)
+
+            if integer_value not in parsed_values:
+                parsed_values.append(integer_value)
+
+        except ValueError:
+            invalid_values.append(cleaned_value)
+
+    return parsed_values, invalid_values
+
+
+def save_tree_state() -> None:
     st.session_state.bst_values = tree.to_list()
 
 
 def reset_visual_feedback() -> None:
-    """
-    이전 탐색·순회 강조 상태를 초기화합니다.
-    """
-
     st.session_state.bst_highlighted_path = []
     st.session_state.bst_found_value = None
     st.session_state.bst_target_value = None
@@ -144,10 +124,6 @@ def reset_visual_feedback() -> None:
 
 
 def reset_prediction() -> None:
-    """
-    트리 상태가 변경되면 예측 결과를 초기화합니다.
-    """
-
     st.session_state.bst_prediction_submitted = False
     st.session_state.bst_prediction_answer = None
 
@@ -159,32 +135,24 @@ def record_operation(
     result: dict,
     changes_tree: bool = False,
 ) -> None:
-    """
-    BST 연산 결과를 저장합니다.
-    """
-
     st.session_state.bst_last_result = result
     st.session_state.bst_history.append(result)
 
-    st.session_state.bst_highlighted_path = (
-        result.get(
-            "path",
-            [],
-        )
+    st.session_state.bst_highlighted_path = result.get(
+        "path",
+        [],
     )
 
-    st.session_state.bst_target_value = (
-        result.get(
-            "value",
-        )
+    st.session_state.bst_target_value = result.get(
+        "value"
     )
 
     if (
         result.get("action") == "search"
         and result.get("success")
     ):
-        st.session_state.bst_found_value = (
-            result.get("value")
+        st.session_state.bst_found_value = result.get(
+            "value"
         )
     else:
         st.session_state.bst_found_value = None
@@ -196,21 +164,21 @@ def record_operation(
 
 
 # ============================================================
-# 4. 페이지 상단
+# 5. 페이지 상단
 # ============================================================
 
 render_page_header(
     title="Binary Search Tree 체험하기",
     description=(
-        "숫자의 크기를 비교하여 왼쪽과 오른쪽으로 이동하며 "
-        "노드를 삽입하고 탐색해 보세요."
+        "여러 숫자를 입력 순서대로 삽입하고, "
+        "크기를 비교하며 트리가 만들어지는 과정을 확인해 보세요."
     ),
     icon="🌳",
 )
 
 
 # ============================================================
-# 5. 개념 설명
+# 6. 개념 설명
 # ============================================================
 
 render_section_title(
@@ -220,9 +188,9 @@ render_section_title(
 render_concept_box(
     title="숫자에 따라 갈림길을 선택하는 모습을 떠올려 보세요.",
     text=(
-        "이진 탐색 트리에서는 현재 노드보다 작은 값은 왼쪽에, "
-        "큰 값은 오른쪽에 저장합니다. 탐색할 때도 같은 규칙으로 "
-        "이동하기 때문에 필요한 방향의 노드만 확인할 수 있습니다."
+        "현재 노드보다 작은 값은 왼쪽에, 큰 값은 오른쪽에 "
+        "저장합니다. 숫자를 자동으로 정렬한 뒤 배치하는 것이 아니라 "
+        "입력한 순서대로 하나씩 비교하여 위치를 결정합니다."
     ),
 )
 
@@ -233,18 +201,11 @@ with concept_col1:
         """
         <article class="structure-card">
             <div class="structure-card-icon">⬅️</div>
-
-            <div class="structure-card-title">
-                작은 값
-            </div>
-
+            <div class="structure-card-title">작은 값</div>
             <div class="structure-card-description">
                 현재 노드보다 작은 값은 왼쪽 자식 방향으로 이동합니다.
             </div>
-
-            <span class="structure-card-keyword">
-                LEFT
-            </span>
+            <span class="structure-card-keyword">LEFT</span>
         </article>
         """
     )
@@ -254,18 +215,11 @@ with concept_col2:
         """
         <article class="structure-card">
             <div class="structure-card-icon">🌱</div>
-
-            <div class="structure-card-title">
-                ROOT
-            </div>
-
+            <div class="structure-card-title">ROOT</div>
             <div class="structure-card-description">
-                트리에서 가장 처음 삽입된 값은 ROOT 노드가 됩니다.
+                가장 처음 삽입한 값이 트리의 ROOT가 됩니다.
             </div>
-
-            <span class="structure-card-keyword">
-                시작 노드
-            </span>
+            <span class="structure-card-keyword">시작 노드</span>
         </article>
         """
     )
@@ -275,27 +229,19 @@ with concept_col3:
         """
         <article class="structure-card">
             <div class="structure-card-icon">➡️</div>
-
-            <div class="structure-card-title">
-                큰 값
-            </div>
-
+            <div class="structure-card-title">큰 값</div>
             <div class="structure-card-description">
                 현재 노드보다 큰 값은 오른쪽 자식 방향으로 이동합니다.
             </div>
-
-            <span class="structure-card-keyword">
-                RIGHT
-            </span>
+            <span class="structure-card-keyword">RIGHT</span>
         </article>
         """
     )
 
 render_message(
     (
-        "예를 들어 ROOT가 <strong>50</strong>일 때, "
-        "<strong>30</strong>은 왼쪽으로, "
-        "<strong>70</strong>은 오른쪽으로 이동합니다."
+        "예: <strong>50, 30, 70</strong>을 입력하면 "
+        "50이 ROOT, 30은 왼쪽, 70은 오른쪽에 배치됩니다."
     ),
     message_type="info",
     allow_html=True,
@@ -303,7 +249,7 @@ render_message(
 
 
 # ============================================================
-# 6. 삽입 및 탐색
+# 7. 트리 직접 체험
 # ============================================================
 
 render_section_title(
@@ -315,50 +261,136 @@ control_col, visual_col = st.columns(
 )
 
 with control_col:
-    st.subheader(
-        "트리 조작"
+    st.subheader("트리 조작")
+
+    insert_text = st.text_input(
+        "삽입할 정수",
+        placeholder="예: 50 또는 50, 30, 70, 20",
+        help=(
+            "여러 숫자는 쉼표로 구분하세요. "
+            "숫자는 입력한 순서대로 삽입됩니다."
+        ),
+        max_chars=200,
+        key="bst_insert_text",
     )
 
-    input_value = st.number_input(
-        "삽입하거나 탐색할 정수",
-        min_value=-999,
-        max_value=999,
+    parsed_values, invalid_values = parse_bst_values(
+        insert_text
+    )
+
+    if parsed_values:
+        preview_text = " → ".join(
+            str(value)
+            for value in parsed_values
+        )
+
+        root_preview = (
+            tree.root.value
+            if tree.root is not None
+            else parsed_values[0]
+        )
+
+        render_html(
+            f"""
+            <div class="info-box">
+                <strong>삽입 순서</strong><br>
+                {escape(preview_text)}<br><br>
+
+                현재 트리가 비어 있다면
+                <strong>{root_preview}</strong>이(가)
+                ROOT가 됩니다.
+            </div>
+            """
+        )
+
+    if invalid_values:
+        invalid_text = ", ".join(
+            escape(value)
+            for value in invalid_values
+        )
+
+        render_message(
+            f"정수가 아닌 입력이 포함되어 있습니다: {invalid_text}",
+            message_type="warning",
+        )
+
+    insert_clicked = st.button(
+        "🌱 숫자 삽입",
+        use_container_width=True,
+        key="bst_insert_button",
+    )
+
+    st.markdown("#### 숫자 탐색")
+
+    search_value = st.number_input(
+        "탐색할 정수",
+        min_value=-9999,
+        max_value=9999,
         value=50,
         step=1,
-        key="bst_input_value",
+        key="bst_search_value",
     )
 
-    button_col1, button_col2 = st.columns(2)
-
-    with button_col1:
-        insert_clicked = st.button(
-            "🌱 숫자 삽입",
-            use_container_width=True,
-            type="primary",
-        )
-
-    with button_col2:
-        search_clicked = st.button(
-            "🔍 숫자 탐색",
-            use_container_width=True,
-        )
+    search_clicked = st.button(
+        "🔍 숫자 탐색",
+        use_container_width=True,
+        key="bst_search_button",
+    )
 
     sample_clicked = st.button(
         "🌳 예제 트리 만들기",
         use_container_width=True,
+        key="bst_sample_button",
     )
 
     clear_clicked = st.button(
         "🔄 트리 초기화",
         use_container_width=True,
+        key="bst_clear_button",
     )
 
     if insert_clicked:
-        reset_visual_feedback()
-
-        result = tree.insert(
-            int(input_value)
+        values, invalid = parse_bst_values(
+            insert_text
         )
+
+        if invalid:
+            result = {
+                "success": False,
+                "action": "insert_many",
+                "value": None,
+                "values": [],
+                "path": [],
+                "message": (
+                    "정수가 아닌 값이 포함되어 삽입을 취소했습니다."
+                ),
+                "concept": (
+                    "쉼표 사이에는 정수만 입력해 주세요."
+                ),
+            }
+
+        elif not values:
+            result = {
+                "success": False,
+                "action": "insert",
+                "value": None,
+                "values": [],
+                "path": [],
+                "message": "삽입할 정수를 입력해 주세요.",
+                "concept": (
+                    "여러 숫자는 쉼표로 구분하여 입력할 수 있습니다."
+                ),
+            }
+
+        elif len(values) == 1:
+            result = tree.insert(
+                values[0]
+            )
+
+        else:
+            result = tree.insert_many(
+                values
+            )
 
         record_operation(
             result,
@@ -371,7 +403,7 @@ with control_col:
         reset_visual_feedback()
 
         result = tree.search(
-            int(input_value)
+            int(search_value)
         )
 
         record_operation(
@@ -382,6 +414,8 @@ with control_col:
         st.rerun()
 
     if sample_clicked:
+        tree.clear()
+
         example_values = [
             50,
             30,
@@ -392,25 +426,14 @@ with control_col:
             80,
         ]
 
-        tree.clear()
+        result = tree.insert_many(
+            example_values
+        )
 
-        for value in example_values:
-            tree.insert(value)
-
-        result = {
-            "success": True,
-            "action": "insert",
-            "value": None,
-            "path": [],
-            "message": (
-                "50, 30, 70, 20, 40, 60, 80으로 "
-                "예제 트리를 만들었습니다."
-            ),
-            "concept": (
-                "각 값이 ROOT보다 작은지 또는 큰지에 따라 "
-                "왼쪽과 오른쪽으로 배치됩니다."
-            ),
-        }
+        result["message"] = (
+            "50, 30, 70, 20, 40, 60, 80으로 "
+            "예제 트리를 만들었습니다."
+        )
 
         record_operation(
             result,
@@ -430,7 +453,6 @@ with control_col:
         )
 
         reset_visual_feedback()
-
         st.session_state.bst_quiz_submitted = False
 
         st.rerun()
@@ -460,15 +482,13 @@ with visual_col:
 
 
 # ============================================================
-# 7. 현재 상태와 코드
+# 8. 상태와 코드
 # ============================================================
 
 status_col1, status_col2 = st.columns(2)
 
 with status_col1:
-    render_bst_status(
-        tree
-    )
+    render_bst_status(tree)
 
 with status_col2:
     active_operation = None
@@ -480,13 +500,11 @@ with status_col2:
             )
         )
 
-    render_bst_code(
-        active_operation
-    )
+    render_bst_code(active_operation)
 
 
 # ============================================================
-# 8. 트리 순회
+# 9. 트리 순회
 # ============================================================
 
 render_section_title(
@@ -494,11 +512,10 @@ render_section_title(
 )
 
 render_concept_box(
-    title="순회란 무엇인가요?",
+    title="ROOT를 언제 방문하느냐에 따라 순회 방법이 달라집니다.",
     text=(
-        "순회는 트리의 모든 노드를 정해진 순서에 따라 "
-        "한 번씩 방문하는 과정입니다. ROOT를 언제 방문하는지에 따라 "
-        "전위·중위·후위 순회로 구분됩니다."
+        "전위 순회는 ROOT를 먼저, 중위 순회는 ROOT를 가운데, "
+        "후위 순회는 ROOT를 마지막에 방문합니다."
     ),
 )
 
@@ -506,69 +523,33 @@ traversal_col1, traversal_col2, traversal_col3 = st.columns(3)
 
 with traversal_col1:
     preorder_clicked = st.button(
-        "전위 순회\nROOT → LEFT → RIGHT",
+        "전위 순회",
         use_container_width=True,
     )
 
 with traversal_col2:
     inorder_clicked = st.button(
-        "중위 순회\nLEFT → ROOT → RIGHT",
+        "중위 순회",
         use_container_width=True,
     )
 
 with traversal_col3:
     postorder_clicked = st.button(
-        "후위 순회\nLEFT → RIGHT → ROOT",
+        "후위 순회",
         use_container_width=True,
     )
 
 if preorder_clicked:
-    values = tree.preorder()
-
     st.session_state.bst_traversal_name = "전위 순회"
-    st.session_state.bst_traversal_values = values
-
-    st.session_state.bst_last_result = {
-        "success": bool(values),
-        "action": "preorder",
-        "value": None,
-        "path": values,
-        "message": "전위 순회를 실행했습니다.",
-        "concept": "ROOT를 가장 먼저 방문합니다.",
-    }
+    st.session_state.bst_traversal_values = tree.preorder()
 
 if inorder_clicked:
-    values = tree.inorder()
-
     st.session_state.bst_traversal_name = "중위 순회"
-    st.session_state.bst_traversal_values = values
-
-    st.session_state.bst_last_result = {
-        "success": bool(values),
-        "action": "inorder",
-        "value": None,
-        "path": values,
-        "message": "중위 순회를 실행했습니다.",
-        "concept": (
-            "이진 탐색 트리를 중위 순회하면 "
-            "값이 오름차순으로 출력됩니다."
-        ),
-    }
+    st.session_state.bst_traversal_values = tree.inorder()
 
 if postorder_clicked:
-    values = tree.postorder()
-
     st.session_state.bst_traversal_name = "후위 순회"
-    st.session_state.bst_traversal_values = values
-
-    st.session_state.bst_last_result = {
-        "success": bool(values),
-        "action": "postorder",
-        "value": None,
-        "path": values,
-        "message": "후위 순회를 실행했습니다.",
-        "concept": "ROOT를 가장 마지막에 방문합니다.",
-    }
+    st.session_state.bst_traversal_values = tree.postorder()
 
 if st.session_state.bst_traversal_name:
     render_traversal_result(
@@ -578,38 +559,23 @@ if st.session_state.bst_traversal_name:
 
 
 # ============================================================
-# 9. 결과 예측
+# 10. 삽입 방향 예측
 # ============================================================
 
 render_section_title(
-    "4. 삽입 위치 예측하기"
-)
-
-render_html(
-    """
-    <section class="quiz-box">
-        <div class="quiz-title">
-            새로운 값은 ROOT의 어느 방향으로 이동할까요?
-        </div>
-
-        <div class="quiz-question">
-            현재 ROOT와 아래의 값을 비교하여,
-            첫 번째 이동 방향을 예측해 보세요.
-        </div>
-    </section>
-    """
+    "4. 삽입 방향 예측하기"
 )
 
 if tree.root is None:
     st.info(
-        "예측 활동을 하려면 먼저 트리에 값을 삽입해 주세요."
+        "예측 활동을 하려면 먼저 숫자를 삽입해 주세요."
     )
 
 else:
     prediction_value = st.number_input(
         "예측할 새로운 정수",
-        min_value=-999,
-        max_value=999,
+        min_value=-9999,
+        max_value=9999,
         value=25,
         step=1,
         key="bst_prediction_value",
@@ -643,75 +609,41 @@ else:
         else:
             correct_answer = "이동하지 않음"
 
-        selected_answer = (
-            st.session_state.bst_prediction_answer
-        )
-
-        if selected_answer is None:
-            st.warning(
-                "답을 선택한 뒤 결과를 확인해 주세요."
+        if st.session_state.bst_prediction_answer == correct_answer:
+            render_message(
+                f"정답입니다! 첫 이동 방향은 {correct_answer}입니다.",
+                message_type="success",
             )
-
-        elif selected_answer == correct_answer:
-            render_html(
-                f"""
-                <div class="quiz-result-correct">
-                    정답입니다!<br>
-                    {escape(str(prediction_value))}과(와)
-                    ROOT {escape(str(root_value))}을(를) 비교하면
-                    첫 이동 방향은
-                    <strong>{correct_answer}</strong>입니다.
-                </div>
-                """
-            )
-
         else:
-            render_html(
-                f"""
-                <div class="quiz-result-wrong">
-                    다시 생각해 보세요.<br>
-                    새로운 값이 ROOT보다 작으면 왼쪽,
-                    크면 오른쪽으로 이동합니다.
-                    정답은
-                    <strong>{correct_answer}</strong>입니다.
-                </div>
-                """
+            render_message(
+                f"정답은 {correct_answer}입니다.",
+                message_type="warning",
             )
 
 
 # ============================================================
-# 10. 학습 확인
+# 11. 학습 확인
 # ============================================================
 
 render_section_title(
     "5. 학습 확인하기"
 )
 
-with st.form(
-    "bst_quiz_form"
-):
+with st.form("bst_quiz_form"):
     question1 = st.radio(
         "1. 현재 노드보다 작은 값은 어느 방향에 저장되나요?",
-        [
-            "왼쪽",
-            "오른쪽",
-            "아무 위치",
-        ],
+        ["왼쪽", "오른쪽", "아무 위치"],
         index=None,
     )
 
     question2 = st.radio(
         "2. 현재 노드보다 큰 값은 어느 방향에 저장되나요?",
-        [
-            "왼쪽",
-            "오른쪽",
-            "ROOT 위쪽",
-        ],
+        ["왼쪽", "오른쪽", "ROOT 위쪽"],
         index=None,
     )
 
     question3 = st.radio(
-        "3. 중위 순회의 방문 순서로 알맞은 것은?",
+        "3. 중위 순회의 방문 순서는?",
         [
             "ROOT → LEFT → RIGHT",
             "LEFT → ROOT → RIGHT",
@@ -721,11 +653,11 @@ with st.form(
     )
 
     question4 = st.radio(
-        "4. 이진 탐색 트리를 중위 순회한 결과의 특징은?",
+        "4. BST의 중위 순회 결과는?",
         [
-            "값이 오름차순으로 출력된다.",
-            "ROOT만 출력된다.",
-            "값이 무작위로 출력된다.",
+            "오름차순",
+            "ROOT만 출력",
+            "무작위 순서",
         ],
         index=None,
     )
@@ -739,14 +671,11 @@ if quiz_submitted:
 
     if question1 == "왼쪽":
         score += 1
-
     if question2 == "오른쪽":
         score += 1
-
     if question3 == "LEFT → ROOT → RIGHT":
         score += 1
-
-    if question4 == "값이 오름차순으로 출력된다.":
+    if question4 == "오름차순":
         score += 1
 
     st.session_state.bst_quiz_score = score
@@ -755,41 +684,18 @@ if quiz_submitted:
 if st.session_state.bst_quiz_submitted:
     score = st.session_state.bst_quiz_score
 
-    if score == 4:
-        render_html(
-            """
-            <div class="quiz-result-correct">
-                4문제를 모두 맞혔습니다!<br>
-                이진 탐색 트리의 기본 원리를 잘 이해했습니다.
-            </div>
-            """
-        )
-
-    elif score >= 2:
-        render_html(
-            f"""
-            <div class="warning-box">
-                4문제 중 {score}문제를 맞혔습니다.<br>
-                왼쪽·오른쪽 배치 규칙과 순회 순서를
-                한 번 더 확인해 보세요.
-            </div>
-            """
-        )
-
-    else:
-        render_html(
-            f"""
-            <div class="quiz-result-wrong">
-                4문제 중 {score}문제를 맞혔습니다.<br>
-                예제 트리를 직접 만들고 탐색하면서
-                값의 이동 방향을 다시 확인해 보세요.
-            </div>
-            """
-        )
+    render_message(
+        f"4문제 중 {score}문제를 맞혔습니다.",
+        message_type=(
+            "success"
+            if score == 4
+            else "warning"
+        ),
+    )
 
 
 # ============================================================
-# 11. 연산 기록
+# 12. 연산 기록
 # ============================================================
 
 with st.expander(
@@ -810,7 +716,7 @@ with st.expander(
 
 
 # ============================================================
-# 12. 페이지 하단
+# 13. 하단
 # ============================================================
 
 render_footer()
