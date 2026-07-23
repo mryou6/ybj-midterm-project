@@ -40,7 +40,7 @@ from modules.stack_logic import Stack
 st.set_page_config(
     page_title="Stack 체험",
     page_icon="🥞",
-    layout="wide"
+    layout="wide",
 )
 
 apply_common_style()
@@ -52,69 +52,75 @@ apply_common_style()
 
 initialize_session_state(
     "stack_items",
-    []
+    [],
 )
 
+# Stack의 기본 최대 크기는 5입니다.
 initialize_session_state(
     "stack_max_size",
-    5
+    5,
 )
 
 initialize_session_state(
     "stack_last_result",
-    None
+    None,
 )
 
 initialize_session_state(
     "stack_history",
-    []
+    [],
 )
 
 initialize_session_state(
     "stack_quiz_score",
-    0
+    0,
 )
 
 initialize_session_state(
     "stack_quiz_submitted",
-    False
+    False,
 )
 
 initialize_session_state(
     "stack_prediction_submitted",
-    False
+    False,
 )
 
 initialize_session_state(
     "stack_prediction_answer",
-    None
+    None,
 )
 
 
 # ============================================================
-# 3. Stack 객체 생성
+# 3. Stack 객체 생성 및 상태 복원
 # ============================================================
 
 stack = Stack(
-    max_size=st.session_state.stack_max_size
+    max_size=st.session_state.stack_max_size,
 )
 
 stack.load_items(
-    st.session_state.stack_items
+    st.session_state.stack_items,
 )
 
 
+# ============================================================
+# 4. 공통 함수
+# ============================================================
+
 def parse_stack_values(
-    input_text: str
+    input_text: str,
 ) -> list[str]:
     """
-    쉼표를 기준으로 입력값을 분리합니다.
+    쉼표를 기준으로 여러 입력값을 분리합니다.
 
     예:
-        "A, B, C" → ["A", "B", "C"]
-        "A,B,C"   → ["A", "B", "C"]
+        "A, B, C" -> ["A", "B", "C"]
+        "A,B,C"   -> ["A", "B", "C"]
+        " A , B " -> ["A", "B"]
 
-    빈 값과 불필요한 공백은 제거합니다.
+    빈 값과 앞뒤 공백은 제거합니다.
     """
 
     return [
@@ -126,7 +132,7 @@ def parse_stack_values(
 
 def save_stack_state() -> None:
     """
-    Stack 객체의 현재 값을 Session State에 저장합니다.
+    현재 Stack 상태를 Session State에 저장합니다.
     """
 
     st.session_state.stack_items = stack.to_list()
@@ -134,7 +140,7 @@ def save_stack_state() -> None:
 
 def reset_prediction() -> None:
     """
-    Stack 상태가 바뀌면 기존 예측 결과를 초기화합니다.
+    Stack 상태가 변경되면 이전 예측 결과를 초기화합니다.
     """
 
     st.session_state.stack_prediction_submitted = False
@@ -146,10 +152,14 @@ def reset_prediction() -> None:
 
 def record_operation(
     result: dict,
-    changes_stack: bool = False
+    changes_stack: bool = False,
 ) -> None:
     """
-    연산 결과와 Stack 상태를 기록합니다.
+    연산 결과와 Stack 상태를 저장합니다.
+
+    Args:
+        result: Stack 연산 결과
+        changes_stack: Stack 내부 데이터가 변경됐는지 여부
     """
 
     st.session_state.stack_last_result = result
@@ -161,8 +171,27 @@ def record_operation(
         reset_prediction()
 
 
+def create_resize_result(
+    new_size: int,
+    message: str,
+    concept: str,
+) -> dict:
+    """
+    Stack 크기 변경 결과 딕셔너리를 생성합니다.
+    """
+
+    return {
+        "success": True,
+        "action": "resize",
+        "value": new_size,
+        "values": [],
+        "message": message,
+        "concept": concept,
+    }
+
+
 # ============================================================
-# 4. 페이지 상단
+# 5. 페이지 상단
 # ============================================================
 
 render_page_header(
@@ -171,12 +200,12 @@ render_page_header(
         "접시를 쌓고 꺼내는 것처럼 값을 직접 넣고 꺼내며 "
         "Stack의 원리를 알아보세요."
     ),
-    icon="🥞"
+    icon="🥞",
 )
 
 
 # ============================================================
-# 5. 개념 알아보기
+# 6. Stack 개념 알아보기
 # ============================================================
 
 render_section_title(
@@ -189,7 +218,7 @@ render_concept_box(
         "접시를 여러 장 쌓으면 가장 마지막에 올린 접시를 "
         "가장 먼저 꺼내야 합니다. Stack도 이와 같은 방식으로 "
         "데이터를 저장하고 꺼냅니다."
-    )
+    ),
 )
 
 concept_col1, concept_col2, concept_col3 = st.columns(3)
@@ -198,7 +227,9 @@ with concept_col1:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">📥</div>
+            <div class="structure-card-icon">
+                📥
+            </div>
 
             <div class="structure-card-title">
                 Push
@@ -219,7 +250,9 @@ with concept_col2:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">📤</div>
+            <div class="structure-card-icon">
+                📤
+            </div>
 
             <div class="structure-card-title">
                 Pop
@@ -240,7 +273,9 @@ with concept_col3:
     render_html(
         """
         <article class="structure-card">
-            <div class="structure-card-icon">👀</div>
+            <div class="structure-card-icon">
+                👀
+            </div>
 
             <div class="structure-card-title">
                 Peek
@@ -263,49 +298,143 @@ render_message(
         "마지막에 들어온 데이터가 가장 먼저 나오는 방식을 뜻합니다."
     ),
     message_type="info",
-    allow_html=True
+    allow_html=True,
 )
 
 
 # ============================================================
-# 6. Stack 직접 체험
+# 7. Stack 직접 체험하기
 # ============================================================
 
 render_section_title(
     "2. Stack 직접 체험하기"
 )
 
+
+# ------------------------------------------------------------
+# Stack 최대 크기 설정
+# ------------------------------------------------------------
+
 with st.expander(
     "Stack 최대 크기 설정",
-    expanded=False
+    expanded=False,
 ):
-    selected_max_size = st.slider(
-        "Stack에 저장할 수 있는 최대 데이터 수",
-        min_value=3,
-        max_value=15,
-        value=st.session_state.stack_max_size,
-        step=1
+    current_max_size = st.session_state.stack_max_size
+    current_item_count = len(
+        st.session_state.stack_items
     )
 
-    if selected_max_size != st.session_state.stack_max_size:
-        current_count = len(
-            st.session_state.stack_items
+    st.markdown(
+        f"현재 Stack 최대 크기: **{current_max_size}칸**"
+    )
+
+    size_col1, size_col2, size_col3 = st.columns(3)
+
+    with size_col1:
+        decrease_clicked = st.button(
+            "➖ 1칸 줄이기",
+            key="decrease_stack_size",
+            use_container_width=True,
+            disabled=(
+                current_max_size <= 3
+                or current_max_size - 1 < current_item_count
+            ),
         )
 
-        if current_count > selected_max_size:
-            st.warning(
-                "현재 저장된 데이터 수보다 작은 크기로는 "
-                "변경할 수 없습니다."
+    with size_col2:
+        reset_size_clicked = st.button(
+            "5️⃣ 기본 크기 5",
+            key="reset_stack_size",
+            use_container_width=True,
+            disabled=(
+                current_max_size == 5
+                or current_item_count > 5
+            ),
+        )
+
+    with size_col3:
+        increase_clicked = st.button(
+            "➕ 1칸 늘리기",
+            key="increase_stack_size",
+            use_container_width=True,
+            disabled=current_max_size >= 15,
+        )
+
+    if decrease_clicked:
+        new_size = current_max_size - 1
+
+        st.session_state.stack_max_size = new_size
+
+        st.session_state.stack_last_result = (
+            create_resize_result(
+                new_size=new_size,
+                message=(
+                    f"Stack 최대 크기를 {new_size}칸으로 줄였습니다."
+                ),
+                concept=(
+                    "현재 저장된 데이터 수보다 작은 크기로는 "
+                    "줄일 수 없습니다."
+                ),
             )
+        )
 
-        else:
-            st.session_state.stack_max_size = selected_max_size
-            stack.max_size = selected_max_size
+        st.rerun()
 
-            st.success(
-                f"Stack 최대 크기를 {selected_max_size}로 변경했습니다."
+    if reset_size_clicked:
+        st.session_state.stack_max_size = 5
+
+        st.session_state.stack_last_result = (
+            create_resize_result(
+                new_size=5,
+                message=(
+                    "Stack 최대 크기를 기본값인 5칸으로 변경했습니다."
+                ),
+                concept=(
+                    "이 웹앱의 기본 Stack 크기는 5칸입니다."
+                ),
             )
+        )
 
+        st.rerun()
+
+    if increase_clicked:
+        new_size = current_max_size + 1
+
+        st.session_state.stack_max_size = new_size
+
+        st.session_state.stack_last_result = (
+            create_resize_result(
+                new_size=new_size,
+                message=(
+                    f"Stack 최대 크기를 {new_size}칸으로 늘렸습니다."
+                ),
+                concept=(
+                    "Stack에 데이터를 저장할 수 있는 공간이 "
+                    "1칸 증가했습니다."
+                ),
+            )
+        )
+
+        st.rerun()
+
+    render_html(
+        f"""
+        <div class="info-box">
+            기본 크기는 <strong>5칸</strong>이며,
+            현재 최대 크기는
+            <strong>{current_max_size}칸</strong>입니다.<br>
+
+            현재 Stack에는
+            <strong>{current_item_count}개</strong>의 데이터가
+            저장되어 있습니다.
+        </div>
+        """
+    )
+
+
+# ------------------------------------------------------------
+# Stack 조작 및 시각화
+# ------------------------------------------------------------
 
 control_col, visual_col = st.columns(
     [1, 1.6]
@@ -321,10 +450,10 @@ with control_col:
         placeholder="예: A 또는 A, B, C",
         help=(
             "여러 값은 쉼표로 구분하세요. "
-            "입력한 순서대로 Push되며 공백은 자동으로 제거됩니다."
+            "입력한 순서대로 Push되며 앞뒤 공백은 자동으로 제거됩니다."
         ),
         max_chars=150,
-        key="stack_input_value"
+        key="stack_input_value",
     )
 
     parsed_values = parse_stack_values(
@@ -337,13 +466,20 @@ with control_col:
             for value in parsed_values
         )
 
+        top_preview = escape(
+            parsed_values[-1]
+        )
+
         render_html(
             f"""
             <div class="info-box">
                 <strong>입력 순서</strong><br>
-                {input_preview}<br><br>
+                {input_preview}
+
+                <br><br>
+
                 마지막 값
-                <strong>{escape(parsed_values[-1])}</strong>이(가)
+                <strong>{top_preview}</strong>이(가)
                 TOP이 됩니다.
             </div>
             """
@@ -354,13 +490,15 @@ with control_col:
     with button_col1:
         push_clicked = st.button(
             "📥 Push: 넣기",
-            use_container_width=True
+            use_container_width=True,
+            key="stack_push_button",
         )
 
     with button_col2:
         pop_clicked = st.button(
             "📤 Pop: 꺼내기",
-            use_container_width=True
+            use_container_width=True,
+            key="stack_pop_button",
         )
 
     button_col3, button_col4 = st.columns(2)
@@ -368,38 +506,44 @@ with control_col:
     with button_col3:
         peek_clicked = st.button(
             "👀 Peek: 확인",
-            use_container_width=True
+            use_container_width=True,
+            key="stack_peek_button",
         )
 
     with button_col4:
         clear_clicked = st.button(
             "🔄 초기화",
-            use_container_width=True
+            use_container_width=True,
+            key="stack_clear_button",
         )
+
+    # --------------------------------------------------------
+    # Push 실행
+    # --------------------------------------------------------
 
     if push_clicked:
         values = parse_stack_values(
             input_text
         )
 
-        if len(values) <= 1:
-            if values:
-                result = stack.push(
-                    values[0]
-                )
-            else:
-                result = {
-                    "success": False,
-                    "action": "push",
-                    "value": None,
-                    "values": [],
-                    "message": (
-                        "Stack에 넣을 값을 입력해 주세요."
-                    ),
-                    "concept": (
-                        "여러 값은 쉼표로 구분하여 입력할 수 있습니다."
-                    ),
-                }
+        if not values:
+            result = {
+                "success": False,
+                "action": "push",
+                "value": None,
+                "values": [],
+                "message": (
+                    "Stack에 넣을 값을 입력해 주세요."
+                ),
+                "concept": (
+                    "여러 값은 쉼표로 구분하여 입력할 수 있습니다."
+                ),
+            }
+
+        elif len(values) == 1:
+            result = stack.push(
+                values[0]
+            )
 
         else:
             result = stack.push_many(
@@ -408,38 +552,49 @@ with control_col:
 
         record_operation(
             result,
-            changes_stack=result["success"]
+            changes_stack=result["success"],
         )
 
-        if result["success"]:
-            st.rerun()
+        st.rerun()
+
+    # --------------------------------------------------------
+    # Pop 실행
+    # --------------------------------------------------------
 
     if pop_clicked:
         result = stack.pop()
 
         record_operation(
             result,
-            changes_stack=result["success"]
+            changes_stack=result["success"],
         )
 
         st.rerun()
+
+    # --------------------------------------------------------
+    # Peek 실행
+    # --------------------------------------------------------
 
     if peek_clicked:
         result = stack.peek()
 
         record_operation(
             result,
-            changes_stack=False
+            changes_stack=False,
         )
 
         st.rerun()
+
+    # --------------------------------------------------------
+    # 초기화 실행
+    # --------------------------------------------------------
 
     if clear_clicked:
         result = stack.clear()
 
         record_operation(
             result,
-            changes_stack=True
+            changes_stack=True,
         )
 
         st.session_state.stack_quiz_submitted = False
@@ -460,27 +615,27 @@ with visual_col:
         "표시 방식",
         [
             "현재 데이터만 보기",
-            "전체 저장 공간 보기"
+            "전체 저장 공간 보기",
         ],
         horizontal=True,
-        key="stack_display_mode"
+        key="stack_display_mode",
     )
 
     if display_mode == "현재 데이터만 보기":
         render_stack(
             st.session_state.stack_items,
-            st.session_state.stack_max_size
+            st.session_state.stack_max_size,
         )
 
     else:
         render_stack_slots(
             st.session_state.stack_items,
-            st.session_state.stack_max_size
+            st.session_state.stack_max_size,
         )
 
 
 # ============================================================
-# 7. 현재 상태와 코드
+# 8. 현재 상태와 Python 코드
 # ============================================================
 
 status_col1, status_col2 = st.columns(2)
@@ -488,7 +643,7 @@ status_col1, status_col2 = st.columns(2)
 with status_col1:
     render_stack_status(
         st.session_state.stack_items,
-        st.session_state.stack_max_size
+        st.session_state.stack_max_size,
     )
 
 with status_col2:
@@ -507,7 +662,7 @@ with status_col2:
 
 
 # ============================================================
-# 8. 결과 예측
+# 9. 결과 예측하기
 # ============================================================
 
 render_section_title(
@@ -537,6 +692,7 @@ if not current_items:
     )
 
 else:
+    # 같은 값이 여러 번 들어 있어도 선택지에는 한 번만 표시합니다.
     unique_options = list(
         dict.fromkeys(current_items)
     )
@@ -545,18 +701,19 @@ else:
         "다음에 나올 값 선택",
         options=unique_options,
         index=None,
-        key="stack_prediction_radio"
+        key="stack_prediction_radio",
     )
 
     if st.button(
         "예측 결과 확인",
-        key="check_stack_prediction"
+        key="check_stack_prediction",
     ):
         st.session_state.stack_prediction_submitted = True
         st.session_state.stack_prediction_answer = prediction
 
     if st.session_state.stack_prediction_submitted:
         correct_answer = current_items[-1]
+
         selected_answer = (
             st.session_state.stack_prediction_answer
         )
@@ -571,9 +728,13 @@ else:
                 f"""
                 <div class="quiz-result-correct">
                     정답입니다!<br>
+
                     현재 TOP은
-                    <strong>{escape(str(correct_answer))}</strong>이며,
-                    Pop을 실행하면 이 값이 먼저 나옵니다.
+                    <strong>
+                        {escape(str(correct_answer))}
+                    </strong>이며,
+
+                    Pop을 실행하면 이 값이 가장 먼저 나옵니다.
                 </div>
                 """
             )
@@ -583,16 +744,20 @@ else:
                 f"""
                 <div class="quiz-result-wrong">
                     다시 생각해 보세요.<br>
+
                     Stack은 마지막에 들어온 값이 먼저 나옵니다.
+
                     현재 TOP은
-                    <strong>{escape(str(correct_answer))}</strong>입니다.
+                    <strong>
+                        {escape(str(correct_answer))}
+                    </strong>입니다.
                 </div>
                 """
             )
 
 
 # ============================================================
-# 9. 학습 확인
+# 10. 학습 확인하기
 # ============================================================
 
 render_section_title(
@@ -607,9 +772,9 @@ with st.form(
         [
             "먼저 들어온 데이터가 먼저 나온다.",
             "마지막에 들어온 데이터가 먼저 나온다.",
-            "중간에 있는 데이터가 먼저 나온다."
+            "중간에 있는 데이터가 먼저 나온다.",
         ],
-        index=None
+        index=None,
     )
 
     question2 = st.radio(
@@ -617,9 +782,9 @@ with st.form(
         [
             "Push",
             "Pop",
-            "Peek"
+            "Peek",
         ],
-        index=None
+        index=None,
     )
 
     question3 = st.radio(
@@ -627,9 +792,9 @@ with st.form(
         [
             "Push",
             "Pop",
-            "Peek"
+            "Peek",
         ],
-        index=None
+        index=None,
     )
 
     quiz_submitted = st.form_submit_button(
@@ -650,6 +815,7 @@ if quiz_submitted:
 
     st.session_state.stack_quiz_score = score
     st.session_state.stack_quiz_submitted = True
+
 
 if st.session_state.stack_quiz_submitted:
     score = st.session_state.stack_quiz_score
@@ -686,12 +852,12 @@ if st.session_state.stack_quiz_submitted:
 
 
 # ============================================================
-# 10. 연산 기록
+# 11. 연산 기록
 # ============================================================
 
 with st.expander(
     "내가 실행한 Stack 연산 기록 보기",
-    expanded=False
+    expanded=False,
 ):
     render_operation_history(
         st.session_state.stack_history
@@ -700,14 +866,14 @@ with st.expander(
     if st.session_state.stack_history:
         if st.button(
             "연산 기록 삭제",
-            key="clear_stack_history"
+            key="clear_stack_history",
         ):
             st.session_state.stack_history = []
             st.rerun()
 
 
 # ============================================================
-# 11. 페이지 하단
+# 12. 페이지 하단
 # ============================================================
 
 render_footer()
