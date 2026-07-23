@@ -3,13 +3,13 @@ Stack 자료구조의 핵심 로직을 구현하는 모듈입니다.
 
 주요 기능
 - Push
+- 여러 데이터 일괄 Push
 - Pop
 - Peek
 - 빈 Stack 확인
 - 가득 찬 Stack 확인
 - Stack 초기화
 """
-
 
 from typing import Any
 
@@ -38,9 +38,13 @@ class Stack:
         self.max_size = max_size
         self.items: list[Any] = []
 
+    # ========================================================
+    # Push
+    # ========================================================
+
     def push(self, value: Any) -> dict:
         """
-        Stack의 가장 위에 새로운 값을 추가합니다.
+        Stack의 가장 위에 새로운 값을 하나 추가합니다.
 
         Args:
             value: Stack에 추가할 값
@@ -54,6 +58,7 @@ class Stack:
                 "success": False,
                 "action": "push",
                 "value": value,
+                "values": [value],
                 "message": (
                     f"Stack이 가득 차서 {value}을(를) "
                     "추가할 수 없습니다."
@@ -70,6 +75,7 @@ class Stack:
             "success": True,
             "action": "push",
             "value": value,
+            "values": [value],
             "message": (
                 f"{value}이(가) Stack의 가장 위에 추가되었습니다."
             ),
@@ -79,12 +85,93 @@ class Stack:
             ),
         }
 
+    def push_many(
+        self,
+        values: list[Any]
+    ) -> dict:
+        """
+        여러 값을 입력 순서대로 Stack에 추가합니다.
+
+        예:
+            ["A", "B", "C"]를 입력하면
+            A → B → C 순서로 Push되며 C가 TOP이 됩니다.
+
+        Args:
+            values: Stack에 추가할 값 목록
+
+        Returns:
+            일괄 Push 결과를 담은 딕셔너리
+        """
+
+        cleaned_values = [
+            value
+            for value in values
+            if str(value).strip()
+        ]
+
+        if not cleaned_values:
+            return {
+                "success": False,
+                "action": "push_many",
+                "value": None,
+                "values": [],
+                "message": (
+                    "Stack에 넣을 값을 입력해 주세요."
+                ),
+                "concept": (
+                    "여러 값은 쉼표로 구분하여 입력할 수 있습니다."
+                ),
+            }
+
+        required_space = len(cleaned_values)
+        available_space = self.remaining_space()
+
+        if required_space > available_space:
+            return {
+                "success": False,
+                "action": "push_many",
+                "value": None,
+                "values": cleaned_values,
+                "message": (
+                    f"{required_space}개의 값을 추가하려고 했지만 "
+                    f"현재 남은 공간은 {available_space}칸입니다."
+                ),
+                "concept": (
+                    "입력값을 일부만 추가하지 않고 전체 연산을 "
+                    "취소했습니다. Stack 크기를 늘리거나 "
+                    "입력값의 수를 줄여 주세요."
+                ),
+            }
+
+        for value in cleaned_values:
+            self.items.append(value)
+
+        values_text = ", ".join(
+            str(value)
+            for value in cleaned_values
+        )
+
+        return {
+            "success": True,
+            "action": "push_many",
+            "value": cleaned_values[-1],
+            "values": cleaned_values,
+            "message": (
+                f"{values_text}을(를) 순서대로 Stack에 추가했습니다."
+            ),
+            "concept": (
+                f"마지막에 추가된 {cleaned_values[-1]}이(가) "
+                "현재 TOP입니다."
+            ),
+        }
+
+    # ========================================================
+    # Pop
+    # ========================================================
+
     def pop(self) -> dict:
         """
         Stack의 가장 위에 있는 값을 제거하고 반환합니다.
-
-        Returns:
-            제거된 값과 연산 결과를 담은 딕셔너리
         """
 
         if self.is_empty():
@@ -92,6 +179,7 @@ class Stack:
                 "success": False,
                 "action": "pop",
                 "value": None,
+                "values": [],
                 "message": (
                     "Stack이 비어 있어 꺼낼 데이터가 없습니다."
                 ),
@@ -107,6 +195,7 @@ class Stack:
             "success": True,
             "action": "pop",
             "value": removed_value,
+            "values": [removed_value],
             "message": (
                 f"가장 위에 있던 {removed_value}이(가) "
                 "Stack에서 제거되었습니다."
@@ -117,12 +206,13 @@ class Stack:
             ),
         }
 
+    # ========================================================
+    # Peek
+    # ========================================================
+
     def peek(self) -> dict:
         """
         Stack의 가장 위에 있는 값을 제거하지 않고 확인합니다.
-
-        Returns:
-            TOP 값과 연산 결과를 담은 딕셔너리
         """
 
         if self.is_empty():
@@ -130,6 +220,7 @@ class Stack:
                 "success": False,
                 "action": "peek",
                 "value": None,
+                "values": [],
                 "message": (
                     "Stack이 비어 있어 확인할 데이터가 없습니다."
                 ),
@@ -145,6 +236,7 @@ class Stack:
             "success": True,
             "action": "peek",
             "value": top_value,
+            "values": [top_value],
             "message": (
                 f"현재 Stack의 가장 위에 있는 값은 "
                 f"{top_value}입니다."
@@ -154,12 +246,13 @@ class Stack:
             ),
         }
 
+    # ========================================================
+    # 초기화
+    # ========================================================
+
     def clear(self) -> dict:
         """
         Stack의 모든 데이터를 제거합니다.
-
-        Returns:
-            초기화 결과를 담은 딕셔너리
         """
 
         removed_count = len(self.items)
@@ -170,6 +263,7 @@ class Stack:
             "success": True,
             "action": "clear",
             "value": None,
+            "values": [],
             "message": (
                 f"Stack을 초기화했습니다. "
                 f"{removed_count}개의 데이터가 제거되었습니다."
@@ -179,6 +273,10 @@ class Stack:
                 "빈 상태가 됩니다."
             ),
         }
+
+    # ========================================================
+    # 상태 확인
+    # ========================================================
 
     def is_empty(self) -> bool:
         """
@@ -204,8 +302,6 @@ class Stack:
     def top(self) -> Any | None:
         """
         현재 TOP 값을 반환합니다.
-
-        Stack이 비어 있으면 None을 반환합니다.
         """
 
         if self.is_empty():
@@ -222,21 +318,17 @@ class Stack:
 
     def to_list(self) -> list[Any]:
         """
-        Stack 데이터를 리스트 형태로 반환합니다.
-
-        원본 리스트가 직접 수정되지 않도록 복사본을 반환합니다.
+        Stack 데이터를 리스트 복사본으로 반환합니다.
         """
 
         return self.items.copy()
 
-    def load_items(self, values: list[Any]) -> None:
+    def load_items(
+        self,
+        values: list[Any]
+    ) -> None:
         """
         외부에서 전달된 값으로 Stack 상태를 복원합니다.
-
-        Streamlit Session State와 연결할 때 사용합니다.
-
-        Args:
-            values: 복원할 데이터 목록
         """
 
         if len(values) > self.max_size:

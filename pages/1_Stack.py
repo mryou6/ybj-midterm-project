@@ -104,6 +104,26 @@ stack.load_items(
 )
 
 
+def parse_stack_values(
+    input_text: str
+) -> list[str]:
+    """
+    쉼표를 기준으로 입력값을 분리합니다.
+
+    예:
+        "A, B, C" → ["A", "B", "C"]
+        "A,B,C"   → ["A", "B", "C"]
+
+    빈 값과 불필요한 공백은 제거합니다.
+    """
+
+    return [
+        value.strip()
+        for value in input_text.split(",")
+        if value.strip()
+    ]
+
+
 def save_stack_state() -> None:
     """
     Stack 객체의 현재 값을 Session State에 저장합니다.
@@ -114,13 +134,12 @@ def save_stack_state() -> None:
 
 def reset_prediction() -> None:
     """
-    Stack 상태가 바뀌면 이전 예측 결과를 초기화합니다.
+    Stack 상태가 바뀌면 기존 예측 결과를 초기화합니다.
     """
 
     st.session_state.stack_prediction_submitted = False
     st.session_state.stack_prediction_answer = None
 
-    # 기존 라디오 선택도 제거
     if "stack_prediction_radio" in st.session_state:
         del st.session_state["stack_prediction_radio"]
 
@@ -130,7 +149,7 @@ def record_operation(
     changes_stack: bool = False
 ) -> None:
     """
-    연산 결과와 Stack 상태를 저장합니다.
+    연산 결과와 Stack 상태를 기록합니다.
     """
 
     st.session_state.stack_last_result = result
@@ -263,7 +282,7 @@ with st.expander(
     selected_max_size = st.slider(
         "Stack에 저장할 수 있는 최대 데이터 수",
         min_value=3,
-        max_value=10,
+        max_value=15,
         value=st.session_state.stack_max_size,
         step=1
     )
@@ -297,20 +316,45 @@ with control_col:
         "Stack 조작"
     )
 
-    input_value = st.text_input(
+    input_text = st.text_input(
         "Stack에 넣을 값",
-        placeholder="예: 10, 사과, A",
-        max_chars=20,
+        placeholder="예: A 또는 A, B, C",
+        help=(
+            "여러 값은 쉼표로 구분하세요. "
+            "입력한 순서대로 Push되며 공백은 자동으로 제거됩니다."
+        ),
+        max_chars=150,
         key="stack_input_value"
     )
+
+    parsed_values = parse_stack_values(
+        input_text
+    )
+
+    if parsed_values:
+        input_preview = " → ".join(
+            escape(value)
+            for value in parsed_values
+        )
+
+        render_html(
+            f"""
+            <div class="info-box">
+                <strong>입력 순서</strong><br>
+                {input_preview}<br><br>
+                마지막 값
+                <strong>{escape(parsed_values[-1])}</strong>이(가)
+                TOP이 됩니다.
+            </div>
+            """
+        )
 
     button_col1, button_col2 = st.columns(2)
 
     with button_col1:
         push_clicked = st.button(
             "📥 Push: 넣기",
-            use_container_width=True,
-            type="primary"
+            use_container_width=True
         )
 
     with button_col2:
@@ -334,31 +378,40 @@ with control_col:
         )
 
     if push_clicked:
-        cleaned_value = input_value.strip()
+        values = parse_stack_values(
+            input_text
+        )
 
-        if not cleaned_value:
-            result = {
-                "success": False,
-                "action": "push",
-                "value": None,
-                "message": "Stack에 넣을 값을 입력해 주세요.",
-                "concept": (
-                    "Push 연산을 실행하려면 먼저 데이터가 필요합니다."
-                ),
-            }
-
-            st.session_state.stack_last_result = result
+        if len(values) <= 1:
+            if values:
+                result = stack.push(
+                    values[0]
+                )
+            else:
+                result = {
+                    "success": False,
+                    "action": "push",
+                    "value": None,
+                    "values": [],
+                    "message": (
+                        "Stack에 넣을 값을 입력해 주세요."
+                    ),
+                    "concept": (
+                        "여러 값은 쉼표로 구분하여 입력할 수 있습니다."
+                    ),
+                }
 
         else:
-            result = stack.push(
-                cleaned_value
+            result = stack.push_many(
+                values
             )
 
-            record_operation(
-                result,
-                changes_stack=result["success"]
-            )
+        record_operation(
+            result,
+            changes_stack=result["success"]
+        )
 
+        if result["success"]:
             st.rerun()
 
     if pop_clicked:
@@ -409,7 +462,8 @@ with visual_col:
             "현재 데이터만 보기",
             "전체 저장 공간 보기"
         ],
-        horizontal=True
+        horizontal=True,
+        key="stack_display_mode"
     )
 
     if display_mode == "현재 데이터만 보기":
@@ -483,7 +537,6 @@ if not current_items:
     )
 
 else:
-    # 같은 값이 여러 개 있어도 선택지에는 한 번만 표시
     unique_options = list(
         dict.fromkeys(current_items)
     )
@@ -496,14 +549,14 @@ else:
     )
 
     if st.button(
-        "예측 결과 확인"
+        "예측 결과 확인",
+        key="check_stack_prediction"
     ):
         st.session_state.stack_prediction_submitted = True
         st.session_state.stack_prediction_answer = prediction
 
     if st.session_state.stack_prediction_submitted:
         correct_answer = current_items[-1]
-
         selected_answer = (
             st.session_state.stack_prediction_answer
         )
