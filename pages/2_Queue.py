@@ -1,18 +1,32 @@
 """
 Queue 자료구조 체험 페이지입니다.
 
-학습 흐름
-1. Queue 개념 알아보기
-2. Queue 직접 조작하기
-3. 결과 예측하기
-4. Stack과 Queue 비교하기
-5. 학습 확인하기
+지원하는 학습 모드
+1. 선형 큐
+   - Enqueue
+   - 여러 값 일괄 Enqueue
+   - Dequeue
+   - FRONT와 REAR 확인
+
+2. 원형 큐
+   - 고정 크기 배열
+   - front와 rear의 순환 이동
+   - 한 칸을 비워 두는 포화 판별
+   - 여러 값 일괄 Enqueue
 """
 
 from html import escape
 
 import streamlit as st
 
+from components.circular_queue_visualizer import (
+    render_circular_operation_history,
+    render_circular_operation_message,
+    render_circular_queue,
+    render_circular_queue_code,
+    render_circular_queue_status,
+    render_pointer_information,
+)
 from components.queue_visualizer import (
     render_operation_history,
     render_operation_message,
@@ -21,6 +35,7 @@ from components.queue_visualizer import (
     render_queue_slots,
     render_queue_status,
 )
+from modules.circular_queue_logic import CircularQueue
 from modules.common import (
     apply_common_style,
     initialize_session_state,
@@ -51,12 +66,25 @@ apply_common_style()
 # 2. Session State 초기화
 # ============================================================
 
+# ------------------------------------------------------------
+# Queue 모드
+# ------------------------------------------------------------
+
+initialize_session_state(
+    "queue_learning_mode",
+    "선형 큐",
+)
+
+
+# ------------------------------------------------------------
+# 선형 큐
+# ------------------------------------------------------------
+
 initialize_session_state(
     "queue_items",
     [],
 )
 
-# Queue의 기본 최대 크기는 5입니다.
 initialize_session_state(
     "queue_max_size",
     5,
@@ -73,16 +101,6 @@ initialize_session_state(
 )
 
 initialize_session_state(
-    "queue_quiz_score",
-    0,
-)
-
-initialize_session_state(
-    "queue_quiz_submitted",
-    False,
-)
-
-initialize_session_state(
     "queue_prediction_submitted",
     False,
 )
@@ -92,17 +110,94 @@ initialize_session_state(
     None,
 )
 
-
-# ============================================================
-# 3. Queue 객체 생성 및 상태 복원
-# ============================================================
-
-queue = Queue(
-    max_size=st.session_state.queue_max_size,
+initialize_session_state(
+    "queue_quiz_score",
+    0,
 )
 
-queue.load_items(
-    st.session_state.queue_items,
+initialize_session_state(
+    "queue_quiz_submitted",
+    False,
+)
+
+
+# ------------------------------------------------------------
+# 원형 큐
+# ------------------------------------------------------------
+
+initialize_session_state(
+    "circular_queue_items",
+    [
+        None,
+        None,
+        None,
+        None,
+        None,
+    ],
+)
+
+initialize_session_state(
+    "circular_queue_front",
+    0,
+)
+
+initialize_session_state(
+    "circular_queue_rear",
+    0,
+)
+
+initialize_session_state(
+    "circular_queue_last_result",
+    None,
+)
+
+initialize_session_state(
+    "circular_queue_history",
+    [],
+)
+
+initialize_session_state(
+    "circular_prediction_submitted",
+    False,
+)
+
+initialize_session_state(
+    "circular_prediction_answer",
+    None,
+)
+
+initialize_session_state(
+    "circular_queue_quiz_score",
+    0,
+)
+
+initialize_session_state(
+    "circular_queue_quiz_submitted",
+    False,
+)
+
+
+# ============================================================
+# 3. Queue 객체 생성
+# ============================================================
+
+linear_queue = Queue(
+    max_size=st.session_state.queue_max_size
+)
+
+linear_queue.load_items(
+    st.session_state.queue_items
+)
+
+
+circular_queue = CircularQueue(
+    max_size=5
+)
+
+circular_queue.load_state(
+    items=st.session_state.circular_queue_items,
+    front=st.session_state.circular_queue_front,
+    rear=st.session_state.circular_queue_rear,
 )
 
 
@@ -115,13 +210,6 @@ def parse_queue_values(
 ) -> list[str]:
     """
     쉼표를 기준으로 여러 입력값을 분리합니다.
-
-    예:
-        "A, B, C" -> ["A", "B", "C"]
-        "A,B,C"   -> ["A", "B", "C"]
-        " A , B " -> ["A", "B"]
-
-    빈 값과 앞뒤 공백은 제거합니다.
     """
 
     return [
@@ -131,19 +219,17 @@ def parse_queue_values(
     ]
 
 
-def save_queue_state() -> None:
-    """
-    현재 Queue 상태를 Session State에 저장합니다.
-    """
+# ------------------------------------------------------------
+# 선형 큐 상태 관리
+# ------------------------------------------------------------
 
-    st.session_state.queue_items = queue.to_list()
+def save_linear_queue_state() -> None:
+    st.session_state.queue_items = (
+        linear_queue.to_list()
+    )
 
 
-def reset_prediction() -> None:
-    """
-    Queue 상태가 변경되면 이전 예측 결과를 초기화합니다.
-    """
-
+def reset_linear_prediction() -> None:
     st.session_state.queue_prediction_submitted = False
     st.session_state.queue_prediction_answer = None
 
@@ -151,40 +237,58 @@ def reset_prediction() -> None:
         del st.session_state["queue_prediction_radio"]
 
 
-def record_operation(
+def record_linear_operation(
     result: dict,
     changes_queue: bool = False,
 ) -> None:
-    """
-    연산 결과와 Queue 상태를 저장합니다.
-    """
-
     st.session_state.queue_last_result = result
     st.session_state.queue_history.append(result)
 
-    save_queue_state()
+    save_linear_queue_state()
 
     if changes_queue:
-        reset_prediction()
+        reset_linear_prediction()
 
 
-def create_resize_result(
-    new_size: int,
-    message: str,
-    concept: str,
-) -> dict:
-    """
-    Queue 크기 변경 결과 딕셔너리를 생성합니다.
-    """
+# ------------------------------------------------------------
+# 원형 큐 상태 관리
+# ------------------------------------------------------------
 
-    return {
-        "success": True,
-        "action": "resize",
-        "value": new_size,
-        "values": [],
-        "message": message,
-        "concept": concept,
-    }
+def save_circular_queue_state() -> None:
+    state = circular_queue.to_state()
+
+    st.session_state.circular_queue_items = (
+        state["items"]
+    )
+
+    st.session_state.circular_queue_front = (
+        state["front"]
+    )
+
+    st.session_state.circular_queue_rear = (
+        state["rear"]
+    )
+
+
+def reset_circular_prediction() -> None:
+    st.session_state.circular_prediction_submitted = False
+    st.session_state.circular_prediction_answer = None
+
+    if "circular_prediction_radio" in st.session_state:
+        del st.session_state["circular_prediction_radio"]
+
+
+def record_circular_operation(
+    result: dict,
+    changes_queue: bool = False,
+) -> None:
+    st.session_state.circular_queue_last_result = result
+    st.session_state.circular_queue_history.append(result)
+
+    save_circular_queue_state()
+
+    if changes_queue:
+        reset_circular_prediction()
 
 
 # ============================================================
@@ -194,786 +298,846 @@ def create_resize_result(
 render_page_header(
     title="Queue 체험하기",
     description=(
-        "대기줄에 차례대로 서는 것처럼 값을 직접 넣고 꺼내며 "
-        "Queue의 원리를 알아보세요."
+        "선형 큐와 원형 큐를 직접 조작하며 "
+        "두 자료구조의 차이를 확인해 보세요."
     ),
     icon="🚶",
 )
 
 
 # ============================================================
-# 6. Queue 개념 알아보기
+# 6. Queue 유형 선택
 # ============================================================
 
 render_section_title(
-    "1. Queue는 무엇인가요?"
+    "학습할 Queue 유형 선택"
 )
 
-render_concept_box(
-    title="놀이기구를 기다리는 대기줄을 떠올려 보세요.",
-    text=(
-        "대기줄에서는 먼저 도착한 사람이 가장 먼저 놀이기구를 "
-        "이용합니다. Queue도 먼저 들어온 데이터를 먼저 처리하는 "
-        "방식으로 데이터를 저장하고 꺼냅니다."
-    ),
+queue_mode = st.radio(
+    "Queue 유형",
+    [
+        "선형 큐",
+        "원형 큐",
+    ],
+    horizontal=True,
+    key="queue_learning_mode",
 )
 
-concept_col1, concept_col2, concept_col3 = st.columns(3)
-
-with concept_col1:
-    render_html(
-        """
-        <article class="structure-card">
-            <div class="structure-card-icon">
-                🚶‍➡️
-            </div>
-
-            <div class="structure-card-title">
-                Enqueue
-            </div>
-
-            <div class="structure-card-description">
-                새로운 데이터를 Queue의 REAR에 추가합니다.
-            </div>
-
-            <span class="structure-card-keyword">
-                줄의 뒤에 서기
-            </span>
-        </article>
-        """
-    )
-
-with concept_col2:
-    render_html(
-        """
-        <article class="structure-card">
-            <div class="structure-card-icon">
-                🚪
-            </div>
-
-            <div class="structure-card-title">
-                Dequeue
-            </div>
-
-            <div class="structure-card-description">
-                Queue의 FRONT에 있는 데이터를 꺼냅니다.
-            </div>
-
-            <span class="structure-card-keyword">
-                맨 앞에서 나가기
-            </span>
-        </article>
-        """
-    )
-
-with concept_col3:
-    render_html(
-        """
-        <article class="structure-card">
-            <div class="structure-card-icon">
-                🔍
-            </div>
-
-            <div class="structure-card-title">
-                FRONT와 REAR
-            </div>
-
-            <div class="structure-card-description">
-                FRONT는 다음에 나갈 위치이고,
-                REAR는 새 값이 들어오는 위치입니다.
-            </div>
-
-            <span class="structure-card-keyword">
-                앞과 뒤 확인하기
-            </span>
-        </article>
-        """
-    )
-
-render_message(
-    (
-        "<strong>FIFO</strong>는 First In, First Out의 약자로, "
-        "먼저 들어온 데이터가 가장 먼저 나오는 방식을 뜻합니다."
-    ),
-    message_type="info",
-    allow_html=True,
-)
-
-
-# ============================================================
-# 7. Queue 직접 체험하기
-# ============================================================
-
-render_section_title(
-    "2. Queue 직접 체험하기"
-)
-
-
-# ------------------------------------------------------------
-# Queue 최대 크기 설정
-# ------------------------------------------------------------
-
-with st.expander(
-    "Queue 최대 크기 설정",
-    expanded=False,
-):
-    current_max_size = st.session_state.queue_max_size
-    current_item_count = len(
-        st.session_state.queue_items
-    )
-
-    st.markdown(
-        f"현재 Queue 최대 크기: **{current_max_size}칸**"
-    )
-
-    size_col1, size_col2, size_col3 = st.columns(3)
-
-    with size_col1:
-        decrease_clicked = st.button(
-            "➖ 1칸 줄이기",
-            key="decrease_queue_size",
-            use_container_width=True,
-            disabled=(
-                current_max_size <= 3
-                or current_max_size - 1 < current_item_count
-            ),
-        )
-
-    with size_col2:
-        reset_size_clicked = st.button(
-            "5️⃣ 기본 크기 5",
-            key="reset_queue_size",
-            use_container_width=True,
-            disabled=(
-                current_max_size == 5
-                or current_item_count > 5
-            ),
-        )
-
-    with size_col3:
-        increase_clicked = st.button(
-            "➕ 1칸 늘리기",
-            key="increase_queue_size",
-            use_container_width=True,
-            disabled=current_max_size >= 15,
-        )
-
-    if decrease_clicked:
-        new_size = current_max_size - 1
-
-        st.session_state.queue_max_size = new_size
-
-        st.session_state.queue_last_result = (
-            create_resize_result(
-                new_size=new_size,
-                message=(
-                    f"Queue 최대 크기를 {new_size}칸으로 줄였습니다."
-                ),
-                concept=(
-                    "현재 저장된 데이터 수보다 작은 크기로는 "
-                    "줄일 수 없습니다."
-                ),
-            )
-        )
-
-        st.rerun()
-
-    if reset_size_clicked:
-        st.session_state.queue_max_size = 5
-
-        st.session_state.queue_last_result = (
-            create_resize_result(
-                new_size=5,
-                message=(
-                    "Queue 최대 크기를 기본값인 5칸으로 변경했습니다."
-                ),
-                concept=(
-                    "이 웹앱의 기본 Queue 크기는 5칸입니다."
-                ),
-            )
-        )
-
-        st.rerun()
-
-    if increase_clicked:
-        new_size = current_max_size + 1
-
-        st.session_state.queue_max_size = new_size
-
-        st.session_state.queue_last_result = (
-            create_resize_result(
-                new_size=new_size,
-                message=(
-                    f"Queue 최대 크기를 {new_size}칸으로 늘렸습니다."
-                ),
-                concept=(
-                    "Queue에 데이터를 저장할 수 있는 공간이 "
-                    "1칸 증가했습니다."
-                ),
-            )
-        )
-
-        st.rerun()
-
-    render_html(
-        f"""
-        <div class="info-box">
-            기본 크기는 <strong>5칸</strong>이며,
-            현재 최대 크기는
-            <strong>{current_max_size}칸</strong>입니다.<br>
-
-            현재 Queue에는
-            <strong>{current_item_count}개</strong>의 데이터가
-            저장되어 있습니다.
-        </div>
-        """
-    )
-
-
-# ------------------------------------------------------------
-# Queue 조작 및 시각화
-# ------------------------------------------------------------
-
-control_col, visual_col = st.columns(
-    [1, 1.8]
-)
-
-with control_col:
-    st.subheader(
-        "Queue 조작"
-    )
-
-    input_text = st.text_input(
-        "Queue에 넣을 값",
-        placeholder="예: A 또는 A, B, C",
-        help=(
-            "여러 값은 쉼표로 구분하세요. "
-            "입력한 순서대로 Enqueue되며 "
-            "앞뒤 공백은 자동으로 제거됩니다."
+if queue_mode == "선형 큐":
+    render_message(
+        (
+            "선형 큐는 배열의 앞쪽 공간이 비어도 "
+            "rear가 마지막 인덱스에 도달하면 "
+            "더 이상 삽입할 수 있습니다."
         ),
-        max_chars=150,
-        key="queue_input_value",
-    )
-
-    parsed_values = parse_queue_values(
-        input_text
-    )
-
-    if parsed_values:
-        input_preview = " → ".join(
-            escape(value)
-            for value in parsed_values
-        )
-
-        front_preview = escape(
-            parsed_values[0]
-        )
-
-        rear_preview = escape(
-            parsed_values[-1]
-        )
-
-        render_html(
-            f"""
-            <div class="info-box">
-                <strong>입력 순서</strong><br>
-                {input_preview}
-
-                <br><br>
-
-                처음 값
-                <strong>{front_preview}</strong>은(는)
-                FRONT 방향에 놓이고,<br>
-
-                마지막 값
-                <strong>{rear_preview}</strong>은(는)
-                REAR가 됩니다.
-            </div>
-            """
-        )
-
-    button_col1, button_col2 = st.columns(2)
-
-    with button_col1:
-        enqueue_clicked = st.button(
-            "🚶 Enqueue: 넣기",
-            use_container_width=True,
-            key="queue_enqueue_button",
-        )
-
-    with button_col2:
-        dequeue_clicked = st.button(
-            "🚪 Dequeue: 꺼내기",
-            use_container_width=True,
-            key="queue_dequeue_button",
-        )
-
-    button_col3, button_col4 = st.columns(2)
-
-    with button_col3:
-        front_clicked = st.button(
-            "🔍 FRONT 확인",
-            use_container_width=True,
-            key="queue_front_button",
-        )
-
-    with button_col4:
-        rear_clicked = st.button(
-            "🔎 REAR 확인",
-            use_container_width=True,
-            key="queue_rear_button",
-        )
-
-    clear_clicked = st.button(
-        "🔄 Queue 초기화",
-        use_container_width=True,
-        key="queue_clear_button",
-    )
-
-    # --------------------------------------------------------
-    # Enqueue 실행
-    # --------------------------------------------------------
-
-    if enqueue_clicked:
-        values = parse_queue_values(
-            input_text
-        )
-
-        if not values:
-            result = {
-                "success": False,
-                "action": "enqueue",
-                "value": None,
-                "values": [],
-                "message": (
-                    "Queue에 넣을 값을 입력해 주세요."
-                ),
-                "concept": (
-                    "여러 값은 쉼표로 구분하여 입력할 수 있습니다."
-                ),
-            }
-
-        elif len(values) == 1:
-            result = queue.enqueue(
-                values[0]
-            )
-
-        else:
-            result = queue.enqueue_many(
-                values
-            )
-
-        record_operation(
-            result,
-            changes_queue=result["success"],
-        )
-
-        st.rerun()
-
-    # --------------------------------------------------------
-    # Dequeue 실행
-    # --------------------------------------------------------
-
-    if dequeue_clicked:
-        result = queue.dequeue()
-
-        record_operation(
-            result,
-            changes_queue=result["success"],
-        )
-
-        st.rerun()
-
-    # --------------------------------------------------------
-    # FRONT 확인
-    # --------------------------------------------------------
-
-    if front_clicked:
-        result = queue.front()
-
-        record_operation(
-            result,
-            changes_queue=False,
-        )
-
-        st.rerun()
-
-    # --------------------------------------------------------
-    # REAR 확인
-    # --------------------------------------------------------
-
-    if rear_clicked:
-        result = queue.rear()
-
-        record_operation(
-            result,
-            changes_queue=False,
-        )
-
-        st.rerun()
-
-    # --------------------------------------------------------
-    # Queue 초기화
-    # --------------------------------------------------------
-
-    if clear_clicked:
-        result = queue.clear()
-
-        record_operation(
-            result,
-            changes_queue=True,
-        )
-
-        st.session_state.queue_quiz_submitted = False
-
-        st.rerun()
-
-    render_operation_message(
-        st.session_state.queue_last_result
-    )
-
-
-with visual_col:
-    st.subheader(
-        "Queue 시각화"
-    )
-
-    display_mode = st.radio(
-        "표시 방식",
-        [
-            "현재 데이터만 보기",
-            "전체 저장 공간 보기",
-        ],
-        horizontal=True,
-        key="queue_display_mode",
-    )
-
-    if display_mode == "현재 데이터만 보기":
-        render_queue(
-            st.session_state.queue_items,
-            st.session_state.queue_max_size,
-        )
-
-    else:
-        render_queue_slots(
-            st.session_state.queue_items,
-            st.session_state.queue_max_size,
-        )
-
-
-# ============================================================
-# 8. 현재 상태와 Python 코드
-# ============================================================
-
-status_col1, status_col2 = st.columns(2)
-
-with status_col1:
-    render_queue_status(
-        st.session_state.queue_items,
-        st.session_state.queue_max_size,
-    )
-
-with status_col2:
-    active_operation = None
-
-    if st.session_state.queue_last_result:
-        active_operation = (
-            st.session_state.queue_last_result.get(
-                "action"
-            )
-        )
-
-    render_queue_code(
-        active_operation
-    )
-
-
-# ============================================================
-# 9. 결과 예측하기
-# ============================================================
-
-render_section_title(
-    "3. 결과 예측하기"
-)
-
-render_html(
-    """
-    <section class="quiz-box">
-        <div class="quiz-title">
-            Dequeue를 실행하면 어떤 값이 나올까요?
-        </div>
-
-        <div class="quiz-question">
-            현재 Queue의 FRONT를 확인하고,
-            다음 Dequeue 연산으로 제거될 값을 예측해 보세요.
-        </div>
-    </section>
-    """
-)
-
-current_items = st.session_state.queue_items
-
-if not current_items:
-    st.info(
-        "예측 활동을 하려면 Queue에 값을 1개 이상 넣어 주세요."
+        message_type="info",
     )
 
 else:
-    unique_options = list(
-        dict.fromkeys(current_items)
+    render_message(
+        (
+            "원형 큐는 배열의 마지막 다음 위치를 "
+            "다시 처음 위치와 연결하여 빈 공간을 재사용합니다."
+        ),
+        message_type="info",
     )
 
-    prediction = st.radio(
-        "다음에 나올 값 선택",
-        options=unique_options,
-        index=None,
-        key="queue_prediction_radio",
+
+# ============================================================
+# 7. 선형 큐 모드
+# ============================================================
+
+if queue_mode == "선형 큐":
+
+    # --------------------------------------------------------
+    # 개념
+    # --------------------------------------------------------
+
+    render_section_title(
+        "1. 선형 Queue는 무엇인가요?"
     )
 
-    if st.button(
-        "예측 결과 확인",
-        key="check_queue_prediction",
-    ):
-        st.session_state.queue_prediction_submitted = True
-        st.session_state.queue_prediction_answer = prediction
+    render_concept_box(
+        title="먼저 줄을 선 사람이 먼저 나갑니다.",
+        text=(
+            "선형 Queue는 먼저 들어온 데이터가 먼저 나오는 "
+            "FIFO 구조입니다. 데이터는 REAR에서 삽입하고 "
+            "FRONT에서 삭제합니다."
+        ),
+    )
 
-    if st.session_state.queue_prediction_submitted:
-        correct_answer = current_items[0]
+    concept_col1, concept_col2, concept_col3 = st.columns(3)
 
-        selected_answer = (
-            st.session_state.queue_prediction_answer
+    with concept_col1:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">🚶</div>
+                <div class="structure-card-title">Enqueue</div>
+                <div class="structure-card-description">
+                    새로운 데이터를 Queue의 뒤쪽에 추가합니다.
+                </div>
+                <span class="structure-card-keyword">REAR</span>
+            </article>
+            """
         )
 
-        if selected_answer is None:
-            st.warning(
-                "답을 선택한 뒤 결과를 확인해 주세요."
+    with concept_col2:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">🚪</div>
+                <div class="structure-card-title">Dequeue</div>
+                <div class="structure-card-description">
+                    Queue의 가장 앞에 있는 데이터를 제거합니다.
+                </div>
+                <span class="structure-card-keyword">FRONT</span>
+            </article>
+            """
+        )
+
+    with concept_col3:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">➡️</div>
+                <div class="structure-card-title">FIFO</div>
+                <div class="structure-card-description">
+                    먼저 삽입된 데이터가 가장 먼저 제거됩니다.
+                </div>
+                <span class="structure-card-keyword">
+                    First In First Out
+                </span>
+            </article>
+            """
+        )
+
+
+    # --------------------------------------------------------
+    # 직접 체험
+    # --------------------------------------------------------
+
+    render_section_title(
+        "2. 선형 Queue 직접 체험하기"
+    )
+
+    control_col, visual_col = st.columns(
+        [1, 1.8]
+    )
+
+    with control_col:
+        st.subheader(
+            "선형 Queue 조작"
+        )
+
+        input_text = st.text_input(
+            "Queue에 넣을 값",
+            placeholder="예: A 또는 A, B, C",
+            help=(
+                "여러 값은 쉼표로 구분하세요. "
+                "입력 순서대로 Enqueue됩니다."
+            ),
+            key="linear_queue_input",
+        )
+
+        parsed_values = parse_queue_values(
+            input_text
+        )
+
+        if parsed_values:
+            preview_text = " → ".join(
+                escape(value)
+                for value in parsed_values
             )
 
-        elif selected_answer == correct_answer:
             render_html(
                 f"""
-                <div class="quiz-result-correct">
-                    정답입니다!<br>
-
-                    현재 FRONT는
-                    <strong>
-                        {escape(str(correct_answer))}
-                    </strong>이며,
-
-                    Dequeue를 실행하면 이 값이 가장 먼저 나옵니다.
+                <div class="info-box">
+                    <strong>입력 순서</strong><br>
+                    {preview_text}
                 </div>
                 """
+            )
+
+        button_col1, button_col2 = st.columns(2)
+
+        with button_col1:
+            enqueue_clicked = st.button(
+                "🚶 Enqueue",
+                use_container_width=True,
+                key="linear_enqueue",
+            )
+
+        with button_col2:
+            dequeue_clicked = st.button(
+                "🚪 Dequeue",
+                use_container_width=True,
+                key="linear_dequeue",
+            )
+
+        button_col3, button_col4 = st.columns(2)
+
+        with button_col3:
+            front_clicked = st.button(
+                "🔍 FRONT 확인",
+                use_container_width=True,
+                key="linear_front",
+            )
+
+        with button_col4:
+            rear_clicked = st.button(
+                "🔎 REAR 확인",
+                use_container_width=True,
+                key="linear_rear",
+            )
+
+        clear_clicked = st.button(
+            "🔄 선형 Queue 초기화",
+            use_container_width=True,
+            key="linear_queue_clear",
+        )
+
+        if enqueue_clicked:
+            values = parse_queue_values(
+                input_text
+            )
+
+            if not values:
+                result = {
+                    "success": False,
+                    "action": "enqueue",
+                    "value": None,
+                    "values": [],
+                    "message": (
+                        "Queue에 넣을 값을 입력해 주세요."
+                    ),
+                    "concept": (
+                        "여러 값은 쉼표로 구분할 수 있습니다."
+                    ),
+                }
+
+            elif len(values) == 1:
+                result = linear_queue.enqueue(
+                    values[0]
+                )
+
+            else:
+                result = linear_queue.enqueue_many(
+                    values
+                )
+
+            record_linear_operation(
+                result,
+                changes_queue=result["success"],
+            )
+
+            st.rerun()
+
+        if dequeue_clicked:
+            result = linear_queue.dequeue()
+
+            record_linear_operation(
+                result,
+                changes_queue=result["success"],
+            )
+
+            st.rerun()
+
+        if front_clicked:
+            result = linear_queue.front()
+
+            record_linear_operation(
+                result,
+                changes_queue=False,
+            )
+
+            st.rerun()
+
+        if rear_clicked:
+            result = linear_queue.rear()
+
+            record_linear_operation(
+                result,
+                changes_queue=False,
+            )
+
+            st.rerun()
+
+        if clear_clicked:
+            result = linear_queue.clear()
+
+            record_linear_operation(
+                result,
+                changes_queue=True,
+            )
+
+            st.session_state.queue_quiz_submitted = False
+
+            st.rerun()
+
+        render_operation_message(
+            st.session_state.queue_last_result
+        )
+
+    with visual_col:
+        st.subheader(
+            "선형 Queue 시각화"
+        )
+
+        display_mode = st.radio(
+            "표시 방식",
+            [
+                "현재 데이터만 보기",
+                "전체 저장 공간 보기",
+            ],
+            horizontal=True,
+            key="linear_queue_display_mode",
+        )
+
+        if display_mode == "현재 데이터만 보기":
+            render_queue(
+                st.session_state.queue_items,
+                st.session_state.queue_max_size,
             )
 
         else:
+            render_queue_slots(
+                st.session_state.queue_items,
+                st.session_state.queue_max_size,
+            )
+
+
+    # --------------------------------------------------------
+    # 상태와 코드
+    # --------------------------------------------------------
+
+    status_col1, status_col2 = st.columns(2)
+
+    with status_col1:
+        render_queue_status(
+            st.session_state.queue_items,
+            st.session_state.queue_max_size,
+        )
+
+    with status_col2:
+        active_operation = None
+
+        if st.session_state.queue_last_result:
+            active_operation = (
+                st.session_state.queue_last_result.get(
+                    "action"
+                )
+            )
+
+        render_queue_code(
+            active_operation
+        )
+
+
+    # --------------------------------------------------------
+    # 연산 기록
+    # --------------------------------------------------------
+
+    with st.expander(
+        "선형 Queue 연산 기록 보기",
+        expanded=False,
+    ):
+        render_operation_history(
+            st.session_state.queue_history
+        )
+
+        if st.session_state.queue_history:
+            if st.button(
+                "선형 Queue 연산 기록 삭제",
+                key="clear_linear_queue_history",
+            ):
+                st.session_state.queue_history = []
+                st.rerun()
+
+
+# ============================================================
+# 8. 원형 큐 모드
+# ============================================================
+
+else:
+
+    # --------------------------------------------------------
+    # 개념
+    # --------------------------------------------------------
+
+    render_section_title(
+        "1. 원형 Queue는 무엇인가요?"
+    )
+
+    render_concept_box(
+        title="배열의 마지막과 처음을 연결합니다.",
+        text=(
+            "원형 Queue는 rear 또는 front가 배열의 마지막에 "
+            "도달하면 다시 0번 인덱스로 이동합니다. "
+            "이 덕분에 앞쪽의 빈 공간을 다시 사용할 수 있습니다."
+        ),
+    )
+
+    concept_col1, concept_col2, concept_col3 = st.columns(3)
+
+    with concept_col1:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">🔄</div>
+                <div class="structure-card-title">순환 이동</div>
+                <div class="structure-card-description">
+                    마지막 인덱스 다음에는 다시 0번으로 이동합니다.
+                </div>
+                <span class="structure-card-keyword">
+                    % SIZE
+                </span>
+            </article>
+            """
+        )
+
+    with concept_col2:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">⬜</div>
+                <div class="structure-card-title">한 칸 비우기</div>
+                <div class="structure-card-description">
+                    공백과 포화 상태를 구분하기 위해 한 칸을 비웁니다.
+                </div>
+                <span class="structure-card-keyword">
+                    SIZE - 1
+                </span>
+            </article>
+            """
+        )
+
+    with concept_col3:
+        render_html(
+            """
+            <article class="structure-card">
+                <div class="structure-card-icon">♻️</div>
+                <div class="structure-card-title">공간 재사용</div>
+                <div class="structure-card-description">
+                    Dequeue로 생긴 앞쪽 공간을 다시 사용할 수 있습니다.
+                </div>
+                <span class="structure-card-keyword">
+                    효율적인 공간 사용
+                </span>
+            </article>
+            """
+        )
+
+    render_message(
+        (
+            "기본 배열 크기는 <strong>5칸</strong>이지만, "
+            "한 칸을 비워 두므로 실제 데이터는 "
+            "<strong>4개</strong>까지 저장할 수 있습니다."
+        ),
+        message_type="info",
+        allow_html=True,
+    )
+
+
+    # --------------------------------------------------------
+    # 직접 체험
+    # --------------------------------------------------------
+
+    render_section_title(
+        "2. 원형 Queue 직접 체험하기"
+    )
+
+    control_col, visual_col = st.columns(
+        [1, 1.9]
+    )
+
+    with control_col:
+        st.subheader(
+            "원형 Queue 조작"
+        )
+
+        circular_input = st.text_input(
+            "원형 Queue에 넣을 값",
+            placeholder="예: A 또는 A, B, C, D",
+            help=(
+                "여러 값은 쉼표로 구분하세요. "
+                "기본 크기 5에서 최대 4개까지 저장할 수 있습니다."
+            ),
+            key="circular_queue_input",
+        )
+
+        parsed_values = parse_queue_values(
+            circular_input
+        )
+
+        if parsed_values:
+            preview_text = " → ".join(
+                escape(value)
+                for value in parsed_values
+            )
+
             render_html(
                 f"""
-                <div class="quiz-result-wrong">
-                    다시 생각해 보세요.<br>
+                <div class="info-box">
+                    <strong>입력 순서</strong><br>
+                    {preview_text}<br><br>
 
-                    Queue는 먼저 들어온 값이 먼저 나옵니다.
-
-                    현재 FRONT는
+                    현재 남은 공간:
                     <strong>
-                        {escape(str(correct_answer))}
-                    </strong>입니다.
+                        {circular_queue.remaining_space()}칸
+                    </strong>
                 </div>
                 """
             )
 
+        button_col1, button_col2 = st.columns(2)
 
-# ============================================================
-# 10. Stack과 Queue 비교하기
-# ============================================================
+        with button_col1:
+            circular_enqueue_clicked = st.button(
+                "🔄 Enqueue",
+                use_container_width=True,
+                key="circular_enqueue",
+            )
 
-render_section_title(
-    "4. Stack과 Queue 비교하기"
-)
+        with button_col2:
+            circular_dequeue_clicked = st.button(
+                "🚪 Dequeue",
+                use_container_width=True,
+                key="circular_dequeue",
+            )
 
-comparison_col1, comparison_col2 = st.columns(2)
+        button_col3, button_col4 = st.columns(2)
 
-with comparison_col1:
-    render_html(
-        """
-        <article class="structure-card">
-            <div class="structure-card-icon">
-                🥞
-            </div>
+        with button_col3:
+            circular_front_clicked = st.button(
+                "🔍 FRONT 확인",
+                use_container_width=True,
+                key="circular_front",
+            )
 
-            <div class="structure-card-title">
-                Stack
-            </div>
+        with button_col4:
+            circular_rear_clicked = st.button(
+                "🔎 REAR 확인",
+                use_container_width=True,
+                key="circular_rear",
+            )
 
-            <div class="structure-card-description">
-                마지막에 들어온 데이터가 먼저 나옵니다.
-                접시를 쌓는 모습과 비슷합니다.
-            </div>
-
-            <span class="structure-card-keyword">
-                LIFO
-            </span>
-        </article>
-        """
-    )
-
-with comparison_col2:
-    render_html(
-        """
-        <article class="structure-card">
-            <div class="structure-card-icon">
-                🚶
-            </div>
-
-            <div class="structure-card-title">
-                Queue
-            </div>
-
-            <div class="structure-card-description">
-                먼저 들어온 데이터가 먼저 나옵니다.
-                대기줄을 서는 모습과 비슷합니다.
-            </div>
-
-            <span class="structure-card-keyword">
-                FIFO
-            </span>
-        </article>
-        """
-    )
-
-
-# ============================================================
-# 11. 학습 확인하기
-# ============================================================
-
-render_section_title(
-    "5. 학습 확인하기"
-)
-
-with st.form(
-    "queue_quiz_form"
-):
-    question1 = st.radio(
-        "1. Queue의 데이터 처리 방식으로 알맞은 것은?",
-        [
-            "먼저 들어온 데이터가 먼저 나온다.",
-            "마지막에 들어온 데이터가 먼저 나온다.",
-            "임의의 데이터가 먼저 나온다.",
-        ],
-        index=None,
-    )
-
-    question2 = st.radio(
-        "2. Queue에 데이터를 추가하는 연산은?",
-        [
-            "Enqueue",
-            "Dequeue",
-            "Front",
-        ],
-        index=None,
-    )
-
-    question3 = st.radio(
-        "3. Queue에서 다음에 제거될 데이터의 위치는?",
-        [
-            "FRONT",
-            "REAR",
-            "TOP",
-        ],
-        index=None,
-    )
-
-    question4 = st.radio(
-        "4. Queue와 가장 비슷한 일상생활 사례는?",
-        [
-            "접시 쌓기",
-            "대기줄 서기",
-            "책상 위에 책 펼치기",
-        ],
-        index=None,
-    )
-
-    quiz_submitted = st.form_submit_button(
-        "학습 결과 확인"
-    )
-
-if quiz_submitted:
-    score = 0
-
-    if question1 == "먼저 들어온 데이터가 먼저 나온다.":
-        score += 1
-
-    if question2 == "Enqueue":
-        score += 1
-
-    if question3 == "FRONT":
-        score += 1
-
-    if question4 == "대기줄 서기":
-        score += 1
-
-    st.session_state.queue_quiz_score = score
-    st.session_state.queue_quiz_submitted = True
-
-
-if st.session_state.queue_quiz_submitted:
-    score = st.session_state.queue_quiz_score
-
-    if score == 4:
-        render_html(
-            """
-            <div class="quiz-result-correct">
-                4문제를 모두 맞혔습니다!<br>
-                Queue의 기본 원리를 잘 이해했습니다.
-            </div>
-            """
+        circular_clear_clicked = st.button(
+            "🔄 원형 Queue 초기화",
+            use_container_width=True,
+            key="circular_clear",
         )
 
-    elif score >= 2:
-        render_html(
-            f"""
-            <div class="warning-box">
-                4문제 중 {score}문제를 맞혔습니다.<br>
-                FRONT, REAR, Enqueue, Dequeue의 차이를
-                한 번 더 확인해 보세요.
-            </div>
-            """
+        if circular_enqueue_clicked:
+            values = parse_queue_values(
+                circular_input
+            )
+
+            if not values:
+                result = {
+                    "success": False,
+                    "action": "enqueue",
+                    "value": None,
+                    "values": [],
+                    "message": (
+                        "원형 Queue에 넣을 값을 입력해 주세요."
+                    ),
+                    "concept": (
+                        "여러 값은 쉼표로 구분할 수 있습니다."
+                    ),
+                    "front": circular_queue.front,
+                    "rear": circular_queue.rear,
+                }
+
+            elif len(values) == 1:
+                result = circular_queue.enqueue(
+                    values[0]
+                )
+
+            else:
+                result = circular_queue.enqueue_many(
+                    values
+                )
+
+            record_circular_operation(
+                result,
+                changes_queue=result["success"],
+            )
+
+            st.rerun()
+
+        if circular_dequeue_clicked:
+            result = circular_queue.dequeue()
+
+            record_circular_operation(
+                result,
+                changes_queue=result["success"],
+            )
+
+            st.rerun()
+
+        if circular_front_clicked:
+            result = circular_queue.peek_front()
+
+            record_circular_operation(
+                result,
+                changes_queue=False,
+            )
+
+            st.rerun()
+
+        if circular_rear_clicked:
+            result = circular_queue.peek_rear()
+
+            record_circular_operation(
+                result,
+                changes_queue=False,
+            )
+
+            st.rerun()
+
+        if circular_clear_clicked:
+            result = circular_queue.clear()
+
+            record_circular_operation(
+                result,
+                changes_queue=True,
+            )
+
+            st.session_state.circular_queue_quiz_submitted = False
+
+            st.rerun()
+
+        render_circular_operation_message(
+            st.session_state.circular_queue_last_result
+        )
+
+    with visual_col:
+        st.subheader(
+            "원형 Queue 시각화"
+        )
+
+        render_circular_queue(
+            circular_queue
+        )
+
+        render_pointer_information(
+            circular_queue
+        )
+
+
+    # --------------------------------------------------------
+    # 상태와 코드
+    # --------------------------------------------------------
+
+    status_col1, status_col2 = st.columns(2)
+
+    with status_col1:
+        render_circular_queue_status(
+            circular_queue
+        )
+
+    with status_col2:
+        active_operation = None
+
+        if st.session_state.circular_queue_last_result:
+            active_operation = (
+                st.session_state
+                .circular_queue_last_result
+                .get("action")
+            )
+
+        render_circular_queue_code(
+            active_operation
+        )
+
+
+    # --------------------------------------------------------
+    # 결과 예측
+    # --------------------------------------------------------
+
+    render_section_title(
+        "3. 다음 Dequeue 결과 예측하기"
+    )
+
+    data_values = circular_queue.data_values()
+
+    if not data_values:
+        st.info(
+            "예측 활동을 하려면 원형 Queue에 값을 넣어 주세요."
         )
 
     else:
-        render_html(
-            f"""
-            <div class="quiz-result-wrong">
-                4문제 중 {score}문제를 맞혔습니다.<br>
-                Queue 시각화를 다시 조작하며
-                FIFO 원리를 확인해 보세요.
-            </div>
-            """
+        prediction = st.radio(
+            "다음 Dequeue에서 나올 값",
+            options=list(
+                dict.fromkeys(data_values)
+            ),
+            index=None,
+            key="circular_prediction_radio",
         )
 
+        if st.button(
+            "예측 결과 확인",
+            key="check_circular_prediction",
+        ):
+            st.session_state.circular_prediction_submitted = True
+            st.session_state.circular_prediction_answer = prediction
 
-# ============================================================
-# 12. 연산 기록
-# ============================================================
+        if st.session_state.circular_prediction_submitted:
+            correct_answer = data_values[0]
+            selected_answer = (
+                st.session_state.circular_prediction_answer
+            )
 
-with st.expander(
-    "내가 실행한 Queue 연산 기록 보기",
-    expanded=False,
-):
-    render_operation_history(
-        st.session_state.queue_history
+            if selected_answer is None:
+                render_message(
+                    "답을 선택해 주세요.",
+                    message_type="warning",
+                )
+
+            elif selected_answer == correct_answer:
+                render_message(
+                    (
+                        f"정답입니다! 다음에 나올 값은 "
+                        f"{correct_answer}입니다."
+                    ),
+                    message_type="success",
+                )
+
+            else:
+                render_message(
+                    (
+                        f"정답은 {correct_answer}입니다. "
+                        "front의 다음 위치를 확인해 보세요."
+                    ),
+                    message_type="warning",
+                )
+
+
+    # --------------------------------------------------------
+    # 학습 확인
+    # --------------------------------------------------------
+
+    render_section_title(
+        "4. 원형 Queue 학습 확인하기"
     )
 
-    if st.session_state.queue_history:
-        if st.button(
-            "연산 기록 삭제",
-            key="clear_queue_history",
+    with st.form(
+        "circular_queue_quiz_form"
+    ):
+        circular_question1 = st.radio(
+            "1. 원형 Queue가 공백인 조건은?",
+            [
+                "front == rear",
+                "rear == SIZE - 1",
+                "front == 0",
+            ],
+            index=None,
+        )
+
+        circular_question2 = st.radio(
+            "2. 원형 Queue가 포화인 조건은?",
+            [
+                "(rear + 1) % SIZE == front",
+                "rear == front",
+                "rear == SIZE",
+            ],
+            index=None,
+        )
+
+        circular_question3 = st.radio(
+            "3. 배열의 마지막 다음 위치를 구하는 방법은?",
+            [
+                "(index + 1) % SIZE",
+                "index + SIZE",
+                "index - 1",
+            ],
+            index=None,
+        )
+
+        circular_question4 = st.radio(
+            "4. 크기가 5인 원형 Queue의 실제 저장 용량은?",
+            [
+                "3개",
+                "4개",
+                "5개",
+            ],
+            index=None,
+        )
+
+        circular_quiz_submitted = st.form_submit_button(
+            "학습 결과 확인"
+        )
+
+    if circular_quiz_submitted:
+        score = 0
+
+        if circular_question1 == "front == rear":
+            score += 1
+
+        if (
+            circular_question2
+            == "(rear + 1) % SIZE == front"
         ):
-            st.session_state.queue_history = []
-            st.rerun()
+            score += 1
+
+        if circular_question3 == "(index + 1) % SIZE":
+            score += 1
+
+        if circular_question4 == "4개":
+            score += 1
+
+        st.session_state.circular_queue_quiz_score = score
+        st.session_state.circular_queue_quiz_submitted = True
+
+    if st.session_state.circular_queue_quiz_submitted:
+        score = (
+            st.session_state.circular_queue_quiz_score
+        )
+
+        if score == 4:
+            render_message(
+                (
+                    "4문제를 모두 맞혔습니다! "
+                    "원형 Queue의 원리를 잘 이해했습니다."
+                ),
+                message_type="success",
+            )
+
+        else:
+            render_message(
+                (
+                    f"4문제 중 {score}문제를 맞혔습니다. "
+                    "front와 rear의 이동 규칙을 다시 확인해 보세요."
+                ),
+                message_type="warning",
+            )
+
+
+    # --------------------------------------------------------
+    # 연산 기록
+    # --------------------------------------------------------
+
+    with st.expander(
+        "원형 Queue 연산 기록 보기",
+        expanded=False,
+    ):
+        render_circular_operation_history(
+            st.session_state.circular_queue_history
+        )
+
+        if st.session_state.circular_queue_history:
+            if st.button(
+                "원형 Queue 연산 기록 삭제",
+                key="clear_circular_queue_history",
+            ):
+                st.session_state.circular_queue_history = []
+                st.rerun()
 
 
 # ============================================================
-# 13. 페이지 하단
+# 9. 페이지 하단
 # ============================================================
 
 render_footer()
