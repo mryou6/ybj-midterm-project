@@ -434,6 +434,18 @@ with guide_col3:
         """
     )
 
+render_section_title(
+    "교사용 메뉴"
+)
+
+if st.button(
+    "📊 형성평가 결과 대시보드",
+    key="go_to_assessment_dashboard",
+    use_container_width=True,
+):
+    move_to_page(
+        "pages/6_Assessment_Dashboard.py"
+    )
 
 # ============================================================
 # 8. 페이지 하단
